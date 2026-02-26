@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-
+# a test comment
 BASE_DIR="$(pwd)"
 PARENT_DIR="$BASE_DIR/custom-addons"
 START=16
