@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Generated runtime/config files
+Caddyfile
+docker-compose.yml
+
+# Generated directories
+conf/
+caddy-logs/
+custom-addons/
+dockerfile/
+pgadmin/
