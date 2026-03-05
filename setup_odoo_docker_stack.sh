@@ -223,7 +223,7 @@ services:
     ports:
       - "8069:8069"
     build:
-      context: ./dockerfile
+      context: .
       dockerfile: dockerfile/${comp_name}_odoo_${base_version}.dockerfile
     container_name: ${comp_name}_odoo_${base_version}
     restart: unless-stopped
