@@ -207,7 +207,7 @@ write_docker_compose() {
 cat <<EOF > docker-compose.yml
 services:
   db:
-    image: postgres:latest
+    image: postgres:15
     container_name: postgres-container
     restart: unless-stopped
     environment:
