@@ -121,10 +121,10 @@ gather_inputs() {
   db_pass=${db_pass:-YourCompanyPass}
   echo
 
-  read -p "Enter PG ADMIN username (default: YourCompanyUser): " pg_user
+  read -p "Enter PG ADMIN username (default: admin@company.com): " pg_user
   pg_user=${pg_user:-YourCompanyUser}
 
-  read -s -p "Enter PG ADMIN password (default: YourCompanyPass): " pg_pass
+  myread -s -p "Enter PG ADMIN password (default: YourCompanyPass): " pg_pass
   pg_pass=${pg_pass:-YourCompanyPass}
   echo
 
@@ -221,7 +221,7 @@ services:
       POSTGRES_USER: ${db_user}
       POSTGRES_PASSWORD: ${db_pass}
     volumes:
-      - odoo_db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - odoo-net
 
@@ -294,9 +294,9 @@ networks:
     driver: bridge
 
 volumes:
+  postgres_data:
   odoo_db_data:
   pgadmin_data:
-  odoo_controller_stack_data:
   caddy_data:
   caddy_config:
 
