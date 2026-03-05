@@ -192,6 +192,13 @@ mkdir -p conf && touch "conf/${comp_name}_odoo_${base_version}.conf"
 
 # create caddy-logs directory
 mkdir -p caddy-logs
+sudo chown -R root:root caddy-logs
+sudo chmod -R 755 caddy-logs
+
+# create odoo-container-logs directory
+mkdir -p odoo-container-logs
+sudo chown -R root:root odoo-container-logs
+sudo chmod -R 755 odoo-container-logs
 
 # Create `pgadmin` directory and `.pgpass` file
 mkdir -p pgadmin && touch "pgadmin/.pgpass" "pgadmin/.servers.json"
@@ -237,8 +244,8 @@ services:
       - /opt/odoo/custom-addons/odoo-${base_version}ee-custom-addons:/mnt/extra-addons
       - $ent_path:/mnt/odoo-${base_version}-ee
       - ./conf/${comp_name}_odoo_${base_version}.conf:/etc/odoo/${comp_name}_odoo_${base_version}.conf
-      - /opt/odoo-on-docker:/opt/odoo-on-docker/
       - odoo_db_data:/var/lib/odoo
+      - ./odoo-container-logs:/var/log/odoo
     command: >
       odoo -d ${comp_name}-odoo${base_version}-db -i website --config=/etc/odoo/${comp_name}_odoo_${base_version}.conf
     networks:
@@ -339,6 +346,7 @@ db_port = 5432
 addons_path = /mnt/odoo-${base_version}-ee,/mnt/extra-addons
 db_filter = ^${comp_name}-odoo${base_version}-db$
 proxy_mode = True
+logfile = /var/log/odoo/${comp_name}-odoo${base_version}.log
 EOF
 }
 
@@ -382,7 +390,6 @@ ${domain} {
             roll_keep 10
             roll_keep_for 720h
         }
-        format single_field common_log
     }
 }
 EOF
