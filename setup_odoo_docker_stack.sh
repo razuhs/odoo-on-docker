@@ -418,10 +418,10 @@ ${domain} {
 EOF
 }
 
-create_odoo_log_file(){
+create_odoo_log_file() {
     touch "odoo-container-logs/${comp_name}_odoo${base_version}.log"
-    sudo chown -R root:root "odoo-container-logs/${comp_name}_odoo${base_version}.log"
-    sudo chmod -R 755 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
+    sudo chown 101:101 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
+    sudo chmod 644 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
 }
 
 # write on requirements file
