@@ -55,3 +55,34 @@ else
 fi
 
 echo "🎉 Docker environment is ready."
+
+echo "⚠️  WARNING: This will remove ALL Docker containers, images, volumes, and networks."
+echo "This action cannot be undone."
+
+read -p "Do you want to continue? (yes/no): " confirm
+
+if [[ "$confirm" != "yes" ]]; then
+    echo "❌ Operation cancelled."
+    exit 0
+fi
+
+echo "🛑 Stopping all containers..."
+docker stop $(docker ps -aq) 2>/dev/null || true
+
+echo "🧹 Removing all containers..."
+docker rm $(docker ps -aq) 2>/dev/null || true
+
+echo "🗑 Removing all images..."
+docker rmi -f $(docker images -aq) 2>/dev/null || true
+
+echo "📦 Removing all volumes..."
+docker volume rm $(docker volume ls -q) 2>/dev/null || true
+docker volume prune -f
+
+echo "🌐 Cleaning unused networks..."
+docker network prune -f
+
+echo "🧼 Performing full system prune..."
+docker system prune -a --volumes -f
+
+echo "✅ Docker environment cleaned successfully."

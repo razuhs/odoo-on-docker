@@ -1,26 +1,80 @@
 # odoo-on-docker
-Automate server creation and Management using docker
 
-1️⃣ Stop and remove all containers
+Automate Odoo server creation and management using Docker.
 
-First stop everything:
+---
 
+## Clean Docker Environment (Fresh Start)
+
+Before deploying a new stack, you may want to completely clean the Docker environment.
+⚠️ **Warning:** The following steps will remove all containers, images, volumes, and networks.
+
+---
+
+### 1️⃣ Stop and Remove All Containers
+
+Stop all running containers:
+
+```bash
 docker stop $(docker ps -aq)
+```
 
-Remove them:
+Remove all containers:
 
+```bash
 docker rm $(docker ps -aq)
-2️⃣ Remove all images
+```
+
+---
+
+### 2️⃣ Remove All Docker Images
+
+Remove every Docker image from the system:
+
+```bash
 docker rmi -f $(docker images -aq)
+```
 
-3️⃣ Remove volumes
+---
+
+### 3️⃣ Remove Docker Volumes
+
+Remove all Docker volumes:
+
+```bash
 docker volume rm $(docker volume ls -q)
+```
+
+If some volumes are still in use or cannot be removed, run:
+
+```bash
 docker volume prune -f
+```
 
-4️⃣ Remove networks (optional)
+---
+
+### 4️⃣ Remove Docker Networks (Optional)
+
+Clean unused Docker networks:
+
+```bash
 docker network prune -f
-6️⃣ One-command cleanup (recommended)
+```
+
+---
+
+### 5️⃣ One-Command Cleanup (Recommended)
+
+Docker provides a single command to remove unused containers, images, networks, volumes, and build cache:
+
+```bash
 docker system prune -a --volumes -f
+```
 
+This is the easiest way to reset your Docker environment.
 
+---
 
+## Result
+
+After running these commands, your Docker environment will be completely clean and ready for a fresh Odoo deployment.
