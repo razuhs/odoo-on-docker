@@ -1,18 +1,14 @@
-ARG ODOO_VERSION
+ARG ODOO_VERSION=19
 FROM odoo:${ODOO_VERSION}
 
 USER root
 
-# change mirror + install system packages
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us.archive.ubuntu.com/ubuntu|' /etc/apt/sources.list \
- && apt-get update \
- && apt-get install -y python3-pip nano \
- && rm -rf /var/lib/apt/lists/*
+# Faster mirror
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us.archive.ubuntu.com/ubuntu|' /etc/apt/sources.list
 
-# copy dependency file separately for caching
-COPY requirements.txt /tmp/requirements.txt
-
-# install python dependencies
-RUN pip install --break-system-packages --ignore-installed -r /tmp/requirements.txt
-
+# Install system tools
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    nano \
+    && rm -rf /var/lib/apt/lists/*
 USER odoo

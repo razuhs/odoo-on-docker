@@ -9,8 +9,8 @@ echo "Step 1: Preparing Docker environment..."
 echo "Step 2: Building Odoo base images..."
 ./build_odoo_base_images.sh
 
-#echo "Step 2: Setting up Odoo Docker stack..."
-#./setup_odoo_docker_stack.sh
-#
-#
-#echo "All steps completed successfully!"
+echo "Step 3: Setting up Odoo Docker stack..."
+./setup_odoo_docker_stack.sh
+
+
+echo "All steps completed successfully!"

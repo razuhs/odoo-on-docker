@@ -140,10 +140,19 @@ gather_inputs() {
   db_pass=${db_pass:-YourCompanyPass}
   echo
 
-  read -p "Enter PG ADMIN username (default: admin@company.com): " pg_user
-  pg_user=${pg_user:-YourCompanyUser}
+  while true; do
+    read -p "Enter PG ADMIN email (default: admin@company.com): " pg_user
+    pg_user=${pg_user:-admin@company.com}
 
-  myread -s -p "Enter PG ADMIN password (default: YourCompanyPass): " pg_pass
+    # email validation regex
+    if [[ "$pg_user" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
+        break
+    else
+        echo "❌ Invalid email format. Please enter a valid email like user@example.com"
+    fi
+  done
+
+  read -s -p "Enter PG ADMIN password (default: YourCompanyPass): " pg_pass
   pg_pass=${pg_pass:-YourCompanyPass}
   echo
 
@@ -205,9 +214,9 @@ rm -rf muk_tmp
 # create docker related files and directories
 create_directory_and_files() {
 echo "Creating Docker-related files and directories..."
-sudo rm -rf conf dockerfile pgadmin Caddyfile docker-compose.yml caddy-logs odoo-container-logs
+sudo rm -rf conf dockerfile pgadmin Caddyfile docker-compose.yml caddy-logs odoo-container-logs requirements
 # Create `conf` directory and `comp_name.conf` file
-mkdir -p conf && touch "conf/${comp_name}_odoo_${base_version}.conf"
+mkdir -p conf && touch "conf/${comp_name}_odoo${base_version}.conf"
 
 # create caddy-logs directory
 mkdir -p caddy-logs
@@ -219,11 +228,14 @@ mkdir -p odoo-container-logs
 sudo chown -R root:root odoo-container-logs
 sudo chmod -R 755 odoo-container-logs
 
+# create requirements directory
+mkdir -p requirements
+
 # Create `pgadmin` directory and `.pgpass` file
 mkdir -p pgadmin && touch "pgadmin/.pgpass" "pgadmin/.servers.json"
 
 # Create `dockerfile` directory and `.$base_version.dockerfile` file
-mkdir -p dockerfile && touch "dockerfile/${comp_name}_odoo_${base_version}.dockerfile"
+mkdir -p dockerfile && touch "dockerfile/${comp_name}_odoo${base_version}.dockerfile"
 
 touch docker-compose.yml Caddyfile
 }
@@ -245,13 +257,13 @@ services:
       - odoo-net
 
   # Container name must same as service name and conf file name
-  ${comp_name}_odoo_${base_version}:
+  ${comp_name}_odoo${base_version}:
     ports:
       - "8069:8069"
     build:
       context: .
-      dockerfile: dockerfile/${comp_name}_odoo_${base_version}.dockerfile
-    container_name: ${comp_name}_odoo_${base_version}
+      dockerfile: dockerfile/${comp_name}_odoo${base_version}.dockerfile
+    container_name: ${comp_name}_odoo${base_version}
     restart: unless-stopped
     depends_on:
       - db
@@ -262,11 +274,11 @@ services:
     volumes:
       - /opt/odoo/custom-addons/odoo-${base_version}ee-custom-addons:/mnt/extra-addons
       - $ent_path:/mnt/odoo-${base_version}-ee
-      - ./conf/${comp_name}_odoo_${base_version}.conf:/etc/odoo/${comp_name}_odoo_${base_version}.conf
+      - ./conf/${comp_name}_odoo${base_version}.conf:/etc/odoo/${comp_name}_odoo${base_version}.conf
       - odoo_db_data:/var/lib/odoo
       - ./odoo-container-logs:/var/log/odoo
     command: >
-      odoo -d ${comp_name}-odoo${base_version}-db -i website --config=/etc/odoo/${comp_name}_odoo_${base_version}.conf
+      odoo -d ${comp_name}-odoo${base_version}-db -i website --config=/etc/odoo/${comp_name}_odoo${base_version}.conf
     networks:
       - odoo-net
 
@@ -302,7 +314,7 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - ${comp_name}_odoo_${base_version}
+      - ${comp_name}_odoo${base_version}
       - pgadmin
     networks:
       - odoo-net
@@ -355,7 +367,7 @@ EOF
 
 # write on .conf file
 write_odoo_conf() {
-cat <<EOF > conf/${comp_name}_odoo_${base_version}.conf
+cat <<EOF > conf/"${comp_name}"_odoo"${base_version}".conf
 [options]
 admin_passwd = ${odoo_conf_admin_pass}
 db_user = ${db_user}
@@ -363,27 +375,27 @@ db_password = ${db_pass}
 db_host = db
 db_port = 5432
 addons_path = /mnt/odoo-${base_version}-ee,/mnt/extra-addons
-db_filter = ^${comp_name}-odoo${base_version}-db$
+db_filter = ^${comp_name}_odoo${base_version}_db$
 proxy_mode = True
-logfile = /var/log/odoo/${comp_name}-odoo${base_version}.log
+logfile = /var/log/odoo/${comp_name}_odoo${base_version}.log
 EOF
 }
 
 
 # write on docker file
 write_dockerfile() {
-cat <<EOF > dockerfile/${comp_name}_odoo_${base_version}.dockerfile
-FROM odoo:${base_version}
+cat <<EOF > dockerfile/${comp_name}_odoo${base_version}.dockerfile
+FROM odoo-custom:${base_version}
+
 USER root
 
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us.archive.ubuntu.com/ubuntu|' /etc/apt/sources.list \
- && apt-get update \
- && apt-get install -y python3-pip nano \
- && rm -rf /var/lib/apt/lists/*
+COPY requirements/${comp_name}_odoo${base_version}_requirements.txt /tmp/req.txt
 
-COPY requirements.txt /tmp/
-
-RUN pip install --break-system-packages -r /tmp/requirements.txt
+RUN if [ "${base_version}" -ge 18 ]; then
+    pip install --break-system-packages -r /tmp/req.txt
+else
+    pip install -r /tmp/req.txt
+fi
 
 USER odoo
 EOF
@@ -393,10 +405,10 @@ EOF
 write_caddyfile() {
 cat <<EOF > Caddyfile
 ${domain} {
-    reverse_proxy ${comp_name}_odoo_${base_version}:8069
+    reverse_proxy ${comp_name}_odoo${base_version}:8069
     encode gzip
     log {
-        output file /caddy-logs/${comp_name}_odoo_${base_version}_access.log {
+        output file /caddy-logs/${comp_name}_odoo${base_version}_access.log {
             roll_size 50mb
             roll_keep 10
             roll_keep_for 720h
@@ -406,16 +418,16 @@ ${domain} {
 EOF
 }
 
-# write requirements.txt file
+# write on requirements file
 write_requirements() {
-cat <<EOF > requirements.txt
+mkdir -p requirements
+cat <<EOF > requirements/"${comp_name}"_odoo"${base_version}"_requirements.txt
 pydantic==2.10.6
 pydantic-core==2.27.2
 email_validator==2.2.0
 phonenumbers==9.0.12
 EOF
 }
-
 # Call the functions
 
 ensure_dependencies
@@ -423,11 +435,12 @@ gather_inputs
 create_custom_addons_directories
 extreact_theme_for_community
 create_directory_and_files
+write_requirements
 write_docker_compose
+write_dockerfile
 write_pgpass
 write_servers_json
 write_odoo_conf
-write_dockerfile
 write_caddyfile
 
 

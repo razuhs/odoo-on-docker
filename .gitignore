@@ -215,3 +215,4 @@ caddy-logs/
 custom-addons/
 dockerfile/
 pgadmin/
+requirements/
