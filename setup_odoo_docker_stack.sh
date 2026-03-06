@@ -384,17 +384,17 @@ EOF
 
 # write on docker file
 write_dockerfile() {
-cat <<EOF > dockerfile/${comp_name}_odoo${base_version}.dockerfile
+cat <<EOF > dockerfile/"${comp_name}"_odoo"${base_version}".dockerfile
 FROM odoo-custom:${base_version}
 
 USER root
 
 COPY requirements/${comp_name}_odoo${base_version}_requirements.txt /tmp/req.txt
 
-RUN if [ "${base_version}" -ge 18 ]; then
-    pip install --break-system-packages -r /tmp/req.txt
-else
-    pip install -r /tmp/req.txt
+RUN if [ ${base_version} -ge 18 ]; then \\
+    pip install --break-system-packages --ignore-installed -r /tmp/req.txt; \\
+else \\
+    pip install --ignore-installed -r /tmp/req.txt; \\
 fi
 
 USER odoo
