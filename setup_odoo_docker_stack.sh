@@ -114,8 +114,27 @@ gather_inputs() {
 
   echo "Enterprise addons path set to: $ent_path"
 
-  read -p "Enter DB username (default: YourCompanyUser): " db_user
-  db_user=${db_user:-YourCompanyUser}
+  while true; do
+    read -p "Enter DB username (default: YourCompanyUser): " db_user
+    db_user=${db_user:-YourCompanyUser}
+
+    # Reject root user
+    if [[ "$db_user" == "root" ]]; then
+        echo "❌ 'root' cannot be used as DB username. Please choose another name."
+        continue
+    fi
+
+    # Check if user exists
+    if id "$db_user" >/dev/null 2>&1; then
+        echo "✅ User '$db_user' already exists."
+    else
+        echo "⚠️ User '$db_user' does not exist. Creating it..."
+        sudo useradd -m -s /bin/bash "$db_user"
+        echo "✅ User '$db_user' created successfully."
+    fi
+
+    break
+  done
 
   read -s -p "Enter DB password (default: YourCompanyPass): " db_pass
   db_pass=${db_pass:-YourCompanyPass}
@@ -186,7 +205,7 @@ rm -rf muk_tmp
 # create docker related files and directories
 create_directory_and_files() {
 echo "Creating Docker-related files and directories..."
-sudo rm -rf conf dockerfile pgadmin Caddyfile docker-compose.yml caddy-logs
+sudo rm -rf conf dockerfile pgadmin Caddyfile docker-compose.yml caddy-logs odoo-container-logs
 # Create `conf` directory and `comp_name.conf` file
 mkdir -p conf && touch "conf/${comp_name}_odoo_${base_version}.conf"
 
@@ -357,24 +376,16 @@ cat <<EOF > dockerfile/${comp_name}_odoo_${base_version}.dockerfile
 FROM odoo:${base_version}
 USER root
 
-# Switch to a different mirror
-RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us.archive.ubuntu.com/ubuntu|' /etc/apt/sources.list
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|http://us.archive.ubuntu.com/ubuntu|' /etc/apt/sources.list \
+ && apt-get update \
+ && apt-get install -y python3-pip nano \
+ && rm -rf /var/lib/apt/lists/*
 
-# Install pip (and any tools you want like nano)
-RUN apt-get update && apt-get install -y \
-    python3-pip \
-    nano \
-    && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt /tmp/
 
+RUN pip install --break-system-packages -r /tmp/requirements.txt
 
-# Install required Python packages with override
-RUN pip install --break-system-packages \
-    --ignore-installed \
-    pydantic==2.10.6 \
-    pydantic-core==2.27.2 \
-    email_validator==2.2.0 \
-    phonenumbers==9.0.12
-
+USER odoo
 EOF
 }
 
@@ -392,6 +403,16 @@ ${domain} {
         }
     }
 }
+EOF
+}
+
+# write requirements.txt file
+write_requirements() {
+cat <<EOF > requirements.txt
+pydantic==2.10.6
+pydantic-core==2.27.2
+email_validator==2.2.0
+phonenumbers==9.0.12
 EOF
 }
 
