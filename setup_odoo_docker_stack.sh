@@ -418,6 +418,12 @@ ${domain} {
 EOF
 }
 
+create_odoo_log_file(){
+    touch "odoo-container-logs/${comp_name}_odoo${base_version}.log"
+    sudo chown -R root:root "odoo-container-logs/${comp_name}_odoo${base_version}.log"
+    sudo chmod -R 755 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
+}
+
 # write on requirements file
 write_requirements() {
 mkdir -p requirements
@@ -442,5 +448,5 @@ write_pgpass
 write_servers_json
 write_odoo_conf
 write_caddyfile
-
+create_odoo_log_file
 
