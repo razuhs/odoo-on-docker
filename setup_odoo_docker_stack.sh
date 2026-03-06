@@ -225,7 +225,7 @@ sudo chmod -R 755 caddy-logs
 
 # create odoo-container-logs directory
 mkdir -p odoo-container-logs
-sudo chown -R root:root odoo-container-logs
+sudo chown -R 101:101 odoo-container-logs
 sudo chmod -R 755 odoo-container-logs
 
 # create requirements directory
@@ -418,12 +418,6 @@ ${domain} {
 EOF
 }
 
-create_odoo_log_file() {
-    touch "odoo-container-logs/${comp_name}_odoo${base_version}.log"
-    sudo chown 101:101 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
-    sudo chmod 644 "odoo-container-logs/${comp_name}_odoo${base_version}.log"
-}
-
 # write on requirements file
 write_requirements() {
 mkdir -p requirements
@@ -448,5 +442,4 @@ write_pgpass
 write_servers_json
 write_odoo_conf
 write_caddyfile
-create_odoo_log_file
 
