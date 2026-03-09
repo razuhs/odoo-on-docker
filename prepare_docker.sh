@@ -3,7 +3,7 @@ set -e
 
 ensure_dependencies() {
     set -e
-    echo "🔍 Ensuring required dependencies and Docker environment..."
+    echo "🔍 Ensuring requiredfr dependencies and Docker environment..."
 
     # -----------------------------
     # Ensure git exists
@@ -121,16 +121,30 @@ ensure_dependencies() {
 }
 
 reset_docker_environment() {
-    echo ""
-    echo "🔄 Docker Environment Reset Option"
-    echo "⚠️  WARNING: This will remove ALL Docker containers, images, volumes, and networks."
-    echo "This action cannot be undone."
-    echo ""
 
     read -p "Do you want a fresh Docker start? (yes/no): " confirm
 
     if [[ "$confirm" != "yes" ]]; then
         echo "⏭️ Skipping Docker reset. Continuing with existing environment..."
+        return 0
+    fi
+
+    echo ""
+    echo "⚠️  WARNING: The following actions will be performed:"
+    echo "  - Stop ALL running containers"
+    echo "  - Remove ALL containers"
+    echo "  - Remove ALL Docker images"
+    echo "  - Remove ALL volumes"
+    echo "  - Remove unused networks"
+    echo "  - Run full docker system prune"
+    echo ""
+    echo "This action cannot be undone."
+    echo ""
+
+    read -p "Are you absolutely sure you want to continue? (type 'CONFIRM'): " confirm_final
+
+    if [[ "$confirm_final" != "CONFIRM" ]]; then
+        echo "❌ Operation cancelled."
         return 0
     fi
 

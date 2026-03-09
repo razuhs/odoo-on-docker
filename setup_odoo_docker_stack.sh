@@ -5,113 +5,78 @@ custom_addons_dir="$(pwd)/custom-addons"
 
 # Function to gather user inputs
 gather_inputs() {
-  echo "Welcome to the Odoo Docker Stack Setup!"
-  # Detect latest Odoo version
-  LATEST=$(
-    git ls-remote --heads https://github.com/odoo/odoo.git \
-    | grep -E 'refs/heads/[0-9]+\.[0-9]+$' \
-    | sed 's#.*/##' \
-    | sort -V \
-    | tail -1 \
-    | cut -d'.' -f1
-  ).
-  START=16
-  LATEST=${LATEST%%.*}
-  echo "Latest Odoo detected: $LATEST"
 
-  echo "Available Odoo versions: $START to $LATEST"
-  read -p "Enter base/controller Odoo version: " base_version
+  CONFIG_FILE=".odoo_stack.conf"
 
-  # Validate numeric input
-  if ! [[ "$base_version" =~ ^[0-9]+$ ]]; then
-      echo "❌ Invalid version. Must be a number."
+  if [ ! -f "$CONFIG_FILE" ]; then
+      echo "❌ Config file $CONFIG_FILE not found."
       exit 1
   fi
 
-  # Validate range
+  source "$CONFIG_FILE"
+
+  START=16
+  LATEST=19
+
+  base_version="${BASE_VERSION:-$LATEST}"
+
+  # Validate numeric
+  if ! [[ "$base_version" =~ ^[0-9]+$ ]]; then
+      echo "❌ Invalid BASE_VERSION."
+      exit 1
+  fi
+
   if (( base_version < START || base_version > LATEST )); then
       echo "❌ Version must be between $START and $LATEST"
       exit 1
   fi
 
-  echo "Base/controller version set to: $base_version"
-
-  # Company Name
-  echo -n "Enter company name (spaces will be converted to _): "
-  read -r comp_name
-  # Convert spaces to underscores
-  comp_name="${comp_name// /_}"
-
-  # Optional: convert to lowercase
+  comp_name="${COMPANY_NAME// /_}"
   comp_name="${comp_name,,}"
 
-  echo "Company name set to: $comp_name"
+  domain="$DOMAIN"
 
-  # Domain Name
-  echo -n "Enter a valid domain name (e.g. example.com):"
-  read -r domain
+  VAR_NAME="ENTERPRISE_PATH_${base_version}"
+  ent_path=$(eval echo \$$VAR_NAME)
 
-  echo "Domain set to: $domain"
+  if [ -z "$ent_path" ]; then
+      echo "❌ Enterprise path for Odoo $base_version not found."
+      exit 1
+  fi
 
-  # Enterprise Addons Path
-  read -r -p "Enter Odoo ${base_version}.0 enterprise addons parent path (e.g. /opt/odoo/enterprise/${base_version}.0): " ent_path
-  # Validate path exists
   if [ ! -d "$ent_path" ]; then
       echo "❌ Directory does not exist: $ent_path"
       exit 1
   fi
 
-  echo "Enterprise addons path set to: $ent_path"
+  db_user="$DB_USER"
+  db_pass="$DB_PASS"
 
-  while true; do
-    read -p "Enter DB username (default: YourCompanyUser): " db_user
-    db_user=${db_user:-YourCompanyUser}
+  pg_user="$PGADMIN_EMAIL"
+  pg_pass="$PGADMIN_PASS"
 
-    # Reject root user
-    if [[ "$db_user" == "root" ]]; then
-        echo "❌ 'root' cannot be used as DB username. Please choose another name."
-        continue
-    fi
+  odoo_conf_admin_pass="$ODOO_ADMIN_PASS"
 
-    # Check if user exists
-    if id "$db_user" >/dev/null 2>&1; then
-        echo "✅ User '$db_user' already exists."
-    else
-        echo "⚠️ User '$db_user' does not exist. Creating it..."
-        sudo useradd -m -s /bin/bash "$db_user"
-        echo "✅ User '$db_user' created successfully."
-    fi
+  # Ensure DB user exists
+  if id "$db_user" >/dev/null 2>&1; then
+      echo "✅ User '$db_user' already exists."
+  else
+      echo "⚠️ User '$db_user' does not exist. Creating..."
+      sudo useradd -m -s /bin/bash "$db_user"
+  fi
 
-    break
-  done
-
-  read -s -p "Enter DB password (default: YourCompanyPass): " db_pass
-  db_pass=${db_pass:-YourCompanyPass}
-  echo
-
-  while true; do
-    read -p "Enter PG ADMIN email (default: admin@company.com): " pg_user
-    pg_user=${pg_user:-admin@company.com}
-
-    # email validation regex
-    if [[ "$pg_user" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then
-        break
-    else
-        echo "❌ Invalid email format. Please enter a valid email like user@example.com"
-    fi
-  done
-
-  read -s -p "Enter PG ADMIN password (default: YourCompanyPass): " pg_pass
-  pg_pass=${pg_pass:-YourCompanyPass}
-  echo
-
-  read -s -p "Enter Odoo Config ADMIN password (default: YourCompanyPass): " odoo_conf_admin_pass
-  odoo_conf_admin_pass=${odoo_conf_admin_pass:-YourCompanyPass}
-
-  echo
-
+  echo ""
+  echo "📦 Odoo Stack Configuration"
+  echo "--------------------------------"
+  echo "Base/controller version : $base_version"
+  echo "Company name            : $comp_name"
+  echo "Domain                  : $domain"
+  echo "Enterprise addons path  : $ent_path"
+  echo "DB user                 : $db_user"
+  echo "PG Admin email          : $pg_user"
+  echo "--------------------------------"
+  echo "✅ Configuration loaded successfully"
 }
-
 # create custom-addons directories for every version of odoo
 create_custom_addons_directories() {
     echo "Creating file and directory structure..."
@@ -149,7 +114,7 @@ for ((v=START; v<=LATEST; v++)); do
         continue
     fi
 
-    echo "📦 Copying Extracted Theme Module For All Community Version. e.g. 16,17, ... $v"
+    echo "📦 Copying Extracted Theme Module For Odoo $v"
     unzip -q "$INNER_ZIP" -d "$TARGET_DIR"
     echo "✅ Copied into $TARGET_DIR"
 done
@@ -175,7 +140,7 @@ sudo chmod -R 775 caddy-logs
 # create odoo-container-logs directory
 mkdir -p odoo-container-logs
 sudo chown -R 101:101 odoo-container-logs
-sudo chmod -R 755 odoo-container-logs
+sudo chmod -R 777 odoo-container-logs
 
 # create requirements directory
 mkdir -p requirements
@@ -206,18 +171,23 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - odoo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${db_user}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # Container name must same as service name and conf file name
   ${comp_name}_odoo${base_version}:
-    ports:
-      - "8069:8069"
     build:
       context: .
       dockerfile: dockerfile/${comp_name}_odoo${base_version}.dockerfile
     container_name: ${comp_name}_odoo${base_version}
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       - HOST=db
       - USER=${db_user}
@@ -235,11 +205,12 @@ services:
 
 
   pgadmin:
-    image: dpage/pgadmin4:latest
+    image: dpage/pgadmin4:8
     container_name: pgadmin4
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       PGADMIN_DEFAULT_EMAIL: ${pg_user}
       PGADMIN_DEFAULT_PASSWORD: ${pg_pass}
