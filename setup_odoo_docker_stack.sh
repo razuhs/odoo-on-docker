@@ -4,6 +4,7 @@ set -euo pipefail
 custom_addons_dir="$(pwd)/custom-addons"
 
 ensure_dependencies() {
+    echo "Ensuring required dependencies are installed..."
     # Ensure git exists
     if ! command -v git >/dev/null 2>&1; then
         echo "❌ git is required but not installed. Installing..."
