@@ -220,8 +220,8 @@ mkdir -p conf && touch "conf/${comp_name}_odoo${base_version}.conf"
 
 # create caddy-logs directory
 mkdir -p caddy-logs
-sudo chown -R root:root caddy-logs
-sudo chmod -R 755 caddy-logs
+sudo chown -R 1000:1000 caddy-logs
+sudo chmod -R 775 caddy-logs
 
 # create odoo-container-logs directory
 mkdir -p odoo-container-logs
