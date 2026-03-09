@@ -57,6 +57,7 @@ ensure_dependencies() {
 
 # Function to gather user inputs
 gather_inputs() {
+  echo "Welcome to the Odoo Docker Stack Setup!"
   # Detect latest Odoo version
   LATEST=$(
     git ls-remote --heads https://github.com/odoo/odoo.git \
@@ -238,10 +239,12 @@ mkdir -p pgadmin && touch "pgadmin/.pgpass" "pgadmin/.servers.json"
 mkdir -p dockerfile && touch "dockerfile/${comp_name}_odoo${base_version}.dockerfile"
 
 touch docker-compose.yml Caddyfile
+echo "✅ Docker-related files and directories created successfully."
 }
 
 # write on docker-compose.yml file
 write_docker_compose() {
+echo "Writing docker-compose.yml..."
 cat <<EOF > docker-compose.yml
 services:
   db:
@@ -332,20 +335,24 @@ volumes:
   caddy_config:
 
 EOF
+echo "✅ docker-compose.yml written successfully."
 }
 
 
 # write on pgadmin/.pgpass file
 write_pgpass() {
+echo "Writing pgadmin/.pgpass..."
 cat <<EOF > pgadmin/.pgpass
 # Format: hostname:port:database:username:password
 db:5432:*:${db_user}:${db_pass}
 EOF
+echo "✅ pgadmin/.pgpass written successfully."
 }
 
 
 # write on pgadmin/.servers.json file
 write_servers_json() {
+echo "Writing pgadmin/.servers.json..."
 cat <<EOF > pgadmin/.servers.json
 {
     "Servers": {
@@ -362,11 +369,13 @@ cat <<EOF > pgadmin/.servers.json
     }
 }
 EOF
+echo "✅ pgadmin/.servers.json written successfully."
 }
 
 
 # write on .conf file
 write_odoo_conf() {
+echo "Writing conf/${comp_name}_odoo${base_version}.conf..."
 cat <<EOF > conf/"${comp_name}"_odoo"${base_version}".conf
 [options]
 admin_passwd = ${odoo_conf_admin_pass}
@@ -379,11 +388,13 @@ db_filter = ^${comp_name}_odoo${base_version}_db$
 proxy_mode = True
 logfile = /var/log/odoo/${comp_name}_odoo${base_version}.log
 EOF
+echo "✅ conf/${comp_name}_odoo${base_version}.conf written successfully."
 }
 
 
 # write on docker file
 write_dockerfile() {
+echo "Writing dockerfile/${comp_name}_odoo${base_version}.dockerfile..."
 cat <<EOF > dockerfile/"${comp_name}"_odoo"${base_version}".dockerfile
 FROM odoo-custom:${base_version}
 
@@ -399,10 +410,12 @@ fi
 
 USER odoo
 EOF
+echo "✅ dockerfile/${comp_name}_odoo${base_version}.dockerfile written successfully."
 }
 
 # write on Caddyfile
 write_caddyfile() {
+echo "Writing Caddyfile..."
 cat <<EOF > Caddyfile
 ${domain} {
     reverse_proxy ${comp_name}_odoo${base_version}:8069
@@ -416,10 +429,12 @@ ${domain} {
     }
 }
 EOF
+echo "✅ Caddyfile written successfully."
 }
 
 # write on requirements file
 write_requirements() {
+echo "Writing requirements/${comp_name}_odoo${base_version}_requirements.txt..."
 mkdir -p requirements
 cat <<EOF > requirements/"${comp_name}"_odoo"${base_version}"_requirements.txt
 pydantic==2.10.6
@@ -427,6 +442,7 @@ pydantic-core==2.27.2
 email_validator==2.2.0
 phonenumbers==9.0.12
 EOF
+echo "✅ requirements/${comp_name}_odoo${base_version}_requirements.txt written successfully."
 }
 # Call the functions
 
