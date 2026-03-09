@@ -1,30 +1,42 @@
 #!/bin/bash
 set -e
 
-START_VERSION=16
-END_VERSION=19
+build_odoo_base_images() {
+    START_VERSION=16
+    END_VERSION=19
 
-echo "Pulling base images first..."
+    echo ""
+    read -p "Do you already have the Odoo base images built (odoo-custom:16–19)? (yes/no): " confirm
 
-for version in $(seq $START_VERSION $END_VERSION)
-do
-    docker pull odoo:$version
-done
+    if [[ "$confirm" == "yes" || "$confirm" == "y" ]]; then
+        echo "⏭️ Skipping base image pull and build. Using existing images."
+        return 0
+    fi
 
-echo "Building custom images..."
+    echo "📥 Pulling base images first..."
 
-for version in $(seq $START_VERSION $END_VERSION)
-do
-    echo "-----------------------------------"
-    echo "Building odoo-custom:$version"
-    echo "-----------------------------------"
+    for version in $(seq $START_VERSION $END_VERSION); do
+        docker pull odoo:"$version"
+    done
 
-    docker build \
-        --build-arg ODOO_VERSION=$version \
-        -t odoo-custom:$version \
-        -f Dockerfile.base .
+    echo ""
+    echo "🔨 Building custom images..."
 
-    echo "✅ Built odoo-custom:$version"
-done
+    for version in $(seq $START_VERSION $END_VERSION); do
+        echo "-----------------------------------"
+        echo "Building odoo-custom:$version"
+        echo "-----------------------------------"
 
-echo "🎉 All Odoo images built."
+        docker build \
+            --build-arg ODOO_VERSION="$version" \
+            -t odoo-custom:"$version" \
+            -f Dockerfile.base .
+
+        echo "✅ Built odoo-custom:$version"
+    done
+
+    echo ""
+    echo "🎉 All Odoo images built."
+}
+
+build_odoo_base_images

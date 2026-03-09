@@ -3,59 +3,6 @@ set -euo pipefail
 
 custom_addons_dir="$(pwd)/custom-addons"
 
-ensure_dependencies() {
-    echo "Ensuring required dependencies are installed..."
-    # Ensure git exists
-    if ! command -v git >/dev/null 2>&1; then
-        echo "❌ git is required but not installed. Installing..."
-        sudo apt-get update
-        sudo apt-get install -y git
-        echo "✅ git installed successfully."
-    else
-        echo "✅ git is already installed."
-    fi
-
-    # Ensure unzip is installed
-    if ! command -v unzip >/dev/null 2>&1; then
-        echo "❌ unzip is required but not installed. Installing..."
-        sudo apt-get update
-        sudo apt-get install -y unzip
-        echo "✅ unzip installed successfully."
-    else
-        echo "✅ unzip is already installed."
-    fi
-
-    # Check if Docker Engine is installed
-    if ! command -v docker >/dev/null 2>&1; then
-        echo "❌ Docker Engine is required but not installed. Installing..."
-        sudo apt-get update
-        sudo apt-get install -y docker.io
-        echo "✅ Docker Engine installed successfully."
-    else
-        echo "✅ Docker Engine is already installed."
-    fi
-
-    # Check if Docker Compose plugin is installed
-    if ! docker compose version >/dev/null 2>&1; then
-        echo "❌ Docker Compose plugin is required but not installed. Installing..."
-        sudo apt-get update
-        sudo apt-get install -y docker-compose-plugin
-        echo "✅ Docker Compose plugin installed successfully."
-    else
-        echo "✅ Docker Compose plugin is already installed."
-    fi
-
-    # Check if inotify-tools is installed
-    if ! command -v inotifywait >/dev/null 2>&1; then
-        echo "❌ inotify-tools is required but not installed. Installing..."
-        sudo apt update
-        sudo apt install -y inotify-tools
-        echo "✅ inotify-tools installed successfully."
-    else
-        echo "✅ inotify-tools is already installed."
-    fi
-}
-
 # Function to gather user inputs
 gather_inputs() {
   echo "Welcome to the Odoo Docker Stack Setup!"
@@ -445,9 +392,9 @@ phonenumbers==9.0.12
 EOF
 echo "✅ requirements/${comp_name}_odoo${base_version}_requirements.txt written successfully."
 }
-# Call the functions
 
-ensure_dependencies
+
+# Call the functions
 gather_inputs
 create_custom_addons_directories
 extreact_theme_for_community

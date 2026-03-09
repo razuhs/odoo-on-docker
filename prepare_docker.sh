@@ -1,88 +1,160 @@
 #!/bin/bash
 set -e
 
-echo "🔍 Checking Docker environment..."
+ensure_dependencies() {
+    set -e
+    echo "🔍 Ensuring required dependencies and Docker environment..."
 
-# Check Docker installation
-if ! command -v docker >/dev/null 2>&1; then
-    echo "❌ Docker is not installed."
-    exit 1
-fi
+    # -----------------------------
+    # Ensure git exists
+    # -----------------------------
+    if ! command -v git >/dev/null 2>&1; then
+        echo "❌ git is required but not installed. Installing..."
+        sudo apt-get update
+        sudo apt-get install -y git
+        echo "✅ git installed successfully."
+    else
+        echo "✅ git is already installed."
+    fi
 
-echo "✅ Docker is installed."
+    # -----------------------------
+    # Ensure unzip exists
+    # -----------------------------
+    if ! command -v unzip >/dev/null 2>&1; then
+        echo "❌ unzip is required but not installed. Installing..."
+        sudo apt-get update
+        sudo apt-get install -y unzip
+        echo "✅ unzip installed successfully."
+    else
+        echo "✅ unzip is already installed."
+    fi
 
-# Check Docker daemon
-if ! systemctl is-active --quiet docker; then
-    echo "⚠️ Docker daemon is not running. Starting..."
-    sudo systemctl start docker
-fi
+    # -----------------------------
+    # Ensure inotify-tools exists
+    # -----------------------------
+    if ! command -v inotifywait >/dev/null 2>&1; then
+        echo "❌ inotify-tools is required but not installed. Installing..."
+        sudo apt-get update
+        sudo apt-get install -y inotify-tools
+        echo "✅ inotify-tools installed successfully."
+    else
+        echo "✅ inotify-tools is already installed."
+    fi
 
-echo "✅ Docker daemon running."
+    # -----------------------------
+    # Ensure Docker Engine exists
+    # -----------------------------
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "❌ Docker Engine is required but not installed. Installing..."
+        sudo apt-get update
+        sudo apt-get install -y docker.io
+        echo "✅ Docker Engine installed successfully."
+    else
+        echo "✅ Docker Engine is already installed."
+    fi
 
-# Check Docker root directory
-DOCKER_ROOT=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)
+    # -----------------------------
+    # Ensure Docker Compose plugin
+    # -----------------------------
+    if ! docker compose version >/dev/null 2>&1; then
+        echo "❌ Docker Compose plugin is required but not installed. Installing..."
+        sudo apt-get update
+        sudo apt-get install -y docker-compose-plugin
+        echo "✅ Docker Compose plugin installed successfully."
+    else
+        echo "✅ Docker Compose plugin is already installed."
+    fi
 
-if [ -z "$DOCKER_ROOT" ]; then
-    echo "❌ Unable to determine Docker root directory."
-    exit 1
-fi
+    # -----------------------------
+    # Check Docker daemon
+    # -----------------------------
+    if ! systemctl is-active --quiet docker; then
+        echo "⚠️ Docker daemon is not running. Starting..."
+        sudo systemctl start docker
+    fi
 
-echo "Docker Root Dir: $DOCKER_ROOT"
+    echo "✅ Docker daemon running."
 
-# Ensure tmp directory exists
-if [ ! -d "$DOCKER_ROOT/tmp" ]; then
-    echo "⚠️ Creating Docker tmp directory..."
-    sudo mkdir -p "$DOCKER_ROOT/tmp"
-    sudo chmod 0711 "$DOCKER_ROOT/tmp"
-fi
+    # -----------------------------
+    # Check Docker root directory
+    # -----------------------------
+    DOCKER_ROOT=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)
 
-echo "✅ Docker tmp directory ready."
+    if [ -z "$DOCKER_ROOT" ]; then
+        echo "❌ Unable to determine Docker root directory."
+        exit 1
+    fi
 
-# Restart Docker to stabilize environment
-echo "🔄 Restarting Docker service..."
-sudo systemctl restart docker
+    echo "Docker Root Dir: $DOCKER_ROOT"
 
-sleep 3
+    # -----------------------------
+    # Ensure Docker tmp directory
+    # -----------------------------
+    if [ ! -d "$DOCKER_ROOT/tmp" ]; then
+        echo "⚠️ Creating Docker tmp directory..."
+        sudo mkdir -p "$DOCKER_ROOT/tmp"
+        sudo chmod 0711 "$DOCKER_ROOT/tmp"
+    fi
 
-# Test pulling a small image
-echo "📦 Testing Docker image pull..."
+    echo "✅ Docker tmp directory ready."
 
-if docker pull hello-world >/dev/null 2>&1; then
-    echo "✅ Docker image pull successful."
-else
-    echo "❌ Docker image pull failed."
-    exit 1
-fi
+    # -----------------------------
+    # Restart Docker to stabilize
+    # -----------------------------
+    echo "🔄 Restarting Docker service..."
+    sudo systemctl restart docker
+    sleep 3
 
-echo "🎉 Docker environment is ready."
+    # -----------------------------
+    # Test Docker image pull
+    # -----------------------------
+    echo "📦 Testing Docker image pull..."
 
-echo "⚠️  WARNING: This will remove ALL Docker containers, images, volumes, and networks."
-echo "This action cannot be undone."
+    if docker pull hello-world >/dev/null 2>&1; then
+        echo "✅ Docker image pull successful."
+    else
+        echo "❌ Docker image pull failed."
+        exit 1
+    fi
 
-read -p "Do you want to continue? (yes/no): " confirm
+    echo "🎉 All dependencies and Docker environment are ready."
+}
 
-if [[ "$confirm" != "yes" ]]; then
-    echo "❌ Operation cancelled."
-    exit 0
-fi
+reset_docker_environment() {
+    echo ""
+    echo "🔄 Docker Environment Reset Option"
+    echo "⚠️  WARNING: This will remove ALL Docker containers, images, volumes, and networks."
+    echo "This action cannot be undone."
+    echo ""
 
-echo "🛑 Stopping all containers..."
-docker stop $(docker ps -aq) 2>/dev/null || true
+    read -p "Do you want a fresh Docker start? (yes/no): " confirm
 
-echo "🧹 Removing all containers..."
-docker rm $(docker ps -aq) 2>/dev/null || true
+    if [[ "$confirm" != "yes" ]]; then
+        echo "⏭️ Skipping Docker reset. Continuing with existing environment..."
+        return 0
+    fi
 
-echo "🗑 Removing all images..."
-docker rmi -f $(docker images -aq) 2>/dev/null || true
+    echo "🛑 Stopping all containers..."
+    docker stop $(docker ps -aq) 2>/dev/null || true
 
-echo "📦 Removing all volumes..."
-docker volume rm $(docker volume ls -q) 2>/dev/null || true
-docker volume prune -f
+    echo "🧹 Removing all containers..."
+    docker rm $(docker ps -aq) 2>/dev/null || true
 
-echo "🌐 Cleaning unused networks..."
-docker network prune -f
+    echo "🗑 Removing all images..."
+    docker rmi -f $(docker images -aq) 2>/dev/null || true
 
-echo "🧼 Performing full system prune..."
-docker system prune -a --volumes -f
+    echo "📦 Removing all volumes..."
+    docker volume rm $(docker volume ls -q) 2>/dev/null || true
+    docker volume prune -f
 
-echo "✅ Docker environment cleaned successfully."
+    echo "🌐 Cleaning unused networks..."
+    docker network prune -f
+
+    echo "🧼 Performing full system prune..."
+    docker system prune -a --volumes -f
+
+    echo "✅ Docker environment cleaned successfully."
+}
+
+ensure_dependencies
+reset_docker_environment
