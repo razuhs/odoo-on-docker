@@ -195,7 +195,7 @@ services:
   ${comp_name}_odoo${base_version}:
     build:
       context: .
-      dockerfile: base_stack/${comp_name}_odoo${base_version}.dockerfile
+      dockerfile: ${comp_name}_odoo${base_version}.dockerfile
     container_name: ${comp_name}_odoo${base_version}
     restart: unless-stopped
     depends_on:
@@ -208,7 +208,7 @@ services:
     volumes:
       - ../custom-addons/odoo-${base_version}ee-custom-addons:/mnt/extra-addons
       - $ent_path:/mnt/odoo-${base_version}-ee
-      - ./base_stack/conf/${comp_name}_odoo${base_version}.conf:/etc/odoo/${comp_name}_odoo${base_version}.conf
+      - ./${comp_name}_odoo${base_version}.conf:/etc/odoo/${comp_name}_odoo${base_version}.conf
       - odoo_db_data:/var/lib/odoo
       - ../logs/odoo-logs:/var/log/odoo
     command: >
@@ -353,7 +353,7 @@ ${domain} {
     reverse_proxy ${comp_name}_odoo${base_version}:8069
     encode gzip
     log {
-        output file logs/caddy-logs/${comp_name}_odoo${base_version}_access.log {
+        output file /caddy-logs/${comp_name}_odoo${base_version}_access.log {
             roll_size 50mb
             roll_keep 10
             roll_keep_for 720h

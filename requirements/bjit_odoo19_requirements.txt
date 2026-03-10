@@ -1,0 +1,4 @@
+pydantic==2.10.6
+pydantic-core==2.27.2
+email_validator==2.2.0
+phonenumbers==9.0.12
