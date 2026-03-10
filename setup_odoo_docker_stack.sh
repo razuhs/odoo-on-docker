@@ -124,41 +124,54 @@ echo "Cleaning Up Extracted Theme Module ..."
 rm -rf muk_tmp
 }
 
-
-# create docker related files and directories
+# Create Docker-related files and directories
 create_directory_and_files() {
-echo "Creating Docker-related files and directories..."
-sudo rm -rf conf dockerfile pgadmin Caddyfile docker-compose.yml caddy-logs odoo-container-logs requirements
-# Create `conf` directory and `comp_name.conf` file
-mkdir -p conf && touch "conf/${comp_name}_odoo${base_version}.conf"
 
-# create caddy-logs directory
-mkdir -p caddy-logs
-sudo chown -R 1000:1000 caddy-logs
-sudo chmod -R 775 caddy-logs
+    echo "Creating Docker-related files and directories..."
 
-# create odoo-container-logs directory
-mkdir -p odoo-container-logs
-sudo chown -R 101:101 odoo-container-logs
-sudo chmod -R 777 odoo-container-logs
+    # Remove existing directories to start fresh
+    sudo rm -rf base_stack logs
 
-# create requirements directory
-mkdir -p requirements
+    # Create main project and log directories
+    mkdir -p base_stack
+    mkdir -p logs/odoo-logs logs/caddy-logs
 
-# Create `pgadmin` directory and `.pgpass` file
-mkdir -p pgadmin && touch "pgadmin/.pgpass" "pgadmin/.servers.json"
+    # Set ownership for project files (host user)
+    sudo chown -R 1000:1000 base_stack
+    sudo chmod -R 775 base_stack
 
-# Create `dockerfile` directory and `.$base_version.dockerfile` file
-mkdir -p dockerfile && touch "dockerfile/${comp_name}_odoo${base_version}.dockerfile"
+    # Set permissions for Odoo logs (Odoo container UID 101)
+    sudo chown -R 101:101 logs/odoo-logs
+    sudo chmod -R 775 logs/odoo-logs
 
-touch docker-compose.yml Caddyfile
-echo "✅ Docker-related files and directories created successfully."
+    # Set permissions for Caddy logs (host user UID 1000)
+    sudo chown -R 1000:1000 logs/caddy-logs
+    sudo chmod -R 775 logs/caddy-logs
+
+    # Create Odoo configuration file
+    touch "base_stack/${comp_name}_odoo${base_version}.conf"
+
+    # Create Dockerfile for the specific Odoo version
+    touch "base_stack/${comp_name}_odoo${base_version}.dockerfile"
+
+    # Create pgAdmin directory and required configuration files
+    mkdir -p base_stack/pgadmin
+    touch base_stack/pgadmin/.pgpass
+    touch base_stack/pgadmin/.servers.json
+    chmod 600 base_stack/pgadmin/.pgpass
+
+    # Create main Docker stack files
+    touch base_stack/docker-compose.yml
+    touch base_stack/Caddyfile
+    touch "base_stack/${comp_name}_odoo${base_version}_requirements.txt"
+
+    echo "✅ Docker-related files and directories created successfully."
 }
 
 # write on docker-compose.yml file
 write_docker_compose() {
 echo "Writing docker-compose.yml..."
-cat <<EOF > docker-compose.yml
+cat <<EOF > base_stack/docker-compose.yml
 services:
   db:
     image: postgres:15
@@ -182,7 +195,7 @@ services:
   ${comp_name}_odoo${base_version}:
     build:
       context: .
-      dockerfile: dockerfile/${comp_name}_odoo${base_version}.dockerfile
+      dockerfile: base_stack/${comp_name}_odoo${base_version}.dockerfile
     container_name: ${comp_name}_odoo${base_version}
     restart: unless-stopped
     depends_on:
@@ -193,11 +206,11 @@ services:
       - USER=${db_user}
       - PASSWORD=${db_pass}
     volumes:
-      - /opt/odoo/custom-addons/odoo-${base_version}ee-custom-addons:/mnt/extra-addons
+      - ../custom-addons/odoo-${base_version}ee-custom-addons:/mnt/extra-addons
       - $ent_path:/mnt/odoo-${base_version}-ee
-      - ./conf/${comp_name}_odoo${base_version}.conf:/etc/odoo/${comp_name}_odoo${base_version}.conf
+      - ./base_stack/conf/${comp_name}_odoo${base_version}.conf:/etc/odoo/${comp_name}_odoo${base_version}.conf
       - odoo_db_data:/var/lib/odoo
-      - ./odoo-container-logs:/var/log/odoo
+      - ../logs/odoo-logs:/var/log/odoo
     command: >
       odoo -d ${comp_name}-odoo${base_version}-db -i website --config=/etc/odoo/${comp_name}_odoo${base_version}.conf
     networks:
@@ -205,7 +218,7 @@ services:
 
 
   pgadmin:
-    image: dpage/pgadmin4:8
+    image: dpage/pgadmin4:9
     container_name: pgadmin4
     restart: unless-stopped
     depends_on:
@@ -218,8 +231,8 @@ services:
       - "5050:80"
     volumes:
       - pgadmin_data:/var/lib/pgadmin
-      - ./pgadmin/servers.json:/pgadmin4/servers.json
-      - ./pgadmin/pgpass:/pgpass
+      - ./pgadmin/.servers.json:/pgadmin4/servers.json
+      - ./pgadmin/.pgpass:/pgpass
     networks:
       - odoo-net
 
@@ -232,7 +245,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./caddy-logs:/caddy-logs
+      - ..logs/caddy-logs:/caddy-logs
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
@@ -261,18 +274,18 @@ echo "✅ docker-compose.yml written successfully."
 # write on pgadmin/.pgpass file
 write_pgpass() {
 echo "Writing pgadmin/.pgpass..."
-cat <<EOF > pgadmin/.pgpass
+cat <<EOF > base_stack/pgadmin/.pgpass
 # Format: hostname:port:database:username:password
 db:5432:*:${db_user}:${db_pass}
 EOF
-echo "✅ pgadmin/.pgpass written successfully."
+echo "✅ base_stack/pgadmin/.pgpass written successfully."
 }
 
 
 # write on pgadmin/.servers.json file
 write_servers_json() {
-echo "Writing pgadmin/.servers.json..."
-cat <<EOF > pgadmin/.servers.json
+echo "Writing base_stack/pgadmin/.servers.json..."
+cat <<EOF > base_stack/pgadmin/.servers.json
 {
     "Servers": {
         "1": {
@@ -294,8 +307,8 @@ echo "✅ pgadmin/.servers.json written successfully."
 
 # write on .conf file
 write_odoo_conf() {
-echo "Writing conf/${comp_name}_odoo${base_version}.conf..."
-cat <<EOF > conf/"${comp_name}"_odoo"${base_version}".conf
+echo "Writing base_stack/${comp_name}_odoo${base_version}.conf..."
+cat <<EOF > base_stack/"${comp_name}"_odoo"${base_version}".conf
 [options]
 admin_passwd = ${odoo_conf_admin_pass}
 db_user = ${db_user}
@@ -307,19 +320,19 @@ db_filter = ^${comp_name}_odoo${base_version}_db$
 proxy_mode = True
 logfile = /var/log/odoo/${comp_name}_odoo${base_version}.log
 EOF
-echo "✅ conf/${comp_name}_odoo${base_version}.conf written successfully."
+echo "✅ base_stack/${comp_name}_odoo${base_version}.conf written successfully."
 }
 
 
 # write on docker file
 write_dockerfile() {
-echo "Writing dockerfile/${comp_name}_odoo${base_version}.dockerfile..."
-cat <<EOF > dockerfile/"${comp_name}"_odoo"${base_version}".dockerfile
+echo "Writing base_stack/${comp_name}_odoo${base_version}.dockerfile..."
+cat <<EOF > base_stack/"${comp_name}"_odoo"${base_version}".dockerfile
 FROM odoo-custom:${base_version}
 
 USER root
 
-COPY requirements/${comp_name}_odoo${base_version}_requirements.txt /tmp/req.txt
+COPY ${comp_name}_odoo${base_version}_requirements.txt /tmp/req.txt
 
 RUN if [ ${base_version} -ge 18 ]; then \\
     pip install --break-system-packages --ignore-installed -r /tmp/req.txt; \\
@@ -329,18 +342,18 @@ fi
 
 USER odoo
 EOF
-echo "✅ dockerfile/${comp_name}_odoo${base_version}.dockerfile written successfully."
+echo "✅ base_stack/${comp_name}_odoo${base_version}.dockerfile written successfully."
 }
 
 # write on Caddyfile
 write_caddyfile() {
 echo "Writing Caddyfile..."
-cat <<EOF > Caddyfile
+cat <<EOF > base_stack/Caddyfile
 ${domain} {
     reverse_proxy ${comp_name}_odoo${base_version}:8069
     encode gzip
     log {
-        output file /caddy-logs/${comp_name}_odoo${base_version}_access.log {
+        output file logs/caddy-logs/${comp_name}_odoo${base_version}_access.log {
             roll_size 50mb
             roll_keep 10
             roll_keep_for 720h
@@ -353,15 +366,14 @@ echo "✅ Caddyfile written successfully."
 
 # write on requirements file
 write_requirements() {
-echo "Writing requirements/${comp_name}_odoo${base_version}_requirements.txt..."
-mkdir -p requirements
-cat <<EOF > requirements/"${comp_name}"_odoo"${base_version}"_requirements.txt
+echo "Writing base_stack/${comp_name}_odoo${base_version}_requirements.txt..."
+cat <<EOF > base_stack/"${comp_name}"_odoo"${base_version}"_requirements.txt
 pydantic==2.10.6
 pydantic-core==2.27.2
 email_validator==2.2.0
 phonenumbers==9.0.12
 EOF
-echo "✅ requirements/${comp_name}_odoo${base_version}_requirements.txt written successfully."
+echo "✅ base_stack/${comp_name}_odoo${base_version}_requirements.txt written successfully."
 }
 
 
