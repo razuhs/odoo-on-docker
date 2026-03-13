@@ -1,0 +1,6 @@
+demo.app-odoo.bjitgroup.org {
+    reverse_proxy demo_odoo18:8069
+    log {
+        output file /caddy-logs/demo_odoo18_access.log
+    }
+}

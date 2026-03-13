@@ -210,6 +210,4 @@ Caddyfile
 docker-compose.yml
 
 # Generated directories
-base_stack/
-custom-addons/
-logs/
+caddy-sites/ custom-addons/ logs/ base_stack/ demo_stack/
