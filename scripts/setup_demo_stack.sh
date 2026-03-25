@@ -8,22 +8,29 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 gather_inputs() {
 
   BASE_CONFIG_FILE="$PROJECT_ROOT/configs/.base_stack.conf"
-  DEMO_CONFIG_FILE="$PROJECT_ROOT/configs/.demo_stack.conf"
-  DEMO_CONFIG_FILE="${1:-.demo_stack.conf}"
-  DEMO_CONFIG_FILE="$PROJECT_ROOT/configs/$DEMO_CONFIG_FILE"
 
-  if [ ! -f "$BASE_CONFIG_FILE" ]; then
-      echo "❌ Base config file $BASE_CONFIG_FILE not found."
+  CONFIG_NAME="$1"
+  # shellcheck disable=SC2034
+  STACK_NAME="$2"
+
+  DEMO_CONFIG_FILE="$PROJECT_ROOT/configs/$CONFIG_NAME"
+
+  # Check base config
+  if [[ ! -f "$BASE_CONFIG_FILE" ]]; then
+      echo "❌ Base config file not found: $BASE_CONFIG_FILE"
       exit 1
   fi
 
-  if [ ! -f "$DEMO_CONFIG_FILE" ]; then
-      echo "❌ Demo config file $DEMO_CONFIG_FILE not found."
+  # Check demo config
+  if [[ ! -f "$DEMO_CONFIG_FILE" ]]; then
+      echo "❌ Demo config file not found: $DEMO_CONFIG_FILE"
       exit 1
   fi
 
+  # Load configs
   # shellcheck disable=SC1090
   source "$BASE_CONFIG_FILE"
+
   # shellcheck disable=SC1090
   source "$DEMO_CONFIG_FILE"
 
@@ -82,12 +89,12 @@ create_directory_and_files() {
 
     echo "Creating demo stack directories..."
 
-    STACK_DIR="$PROJECT_ROOT/${comp_name}_stack"
+    STACK_DIR="$PROJECT_ROOT/${STACK_NAME}"
 
     if [[ -d "$STACK_DIR" ]]; then
         echo "⚠️ Stack directory already exists: $STACK_DIR"
         # shellcheck disable=SC2162
-        read -p "Do you want to delete and recreate it? (y/n): " choice
+        read -p "Do you want to overwrite it? (y/n): " choice
 
         if [[ "$choice" != "y" ]]; then
             echo "Aborting."
@@ -98,15 +105,14 @@ create_directory_and_files() {
     fi
 
     mkdir -p "$STACK_DIR"
+    echo "stack directory: $STACK_DIR"
+    sudo chown -R 1000:1000 "$STACK_DIR"
+    sudo chmod -R 775 "$STACK_DIR"
 
-    sudo chown -R 1000:1000 "$PROJECT_ROOT/${comp_name}_stack"
-    sudo chmod -R 775 "$PROJECT_ROOT/${comp_name}_stack"
-
-    touch "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}.conf"
-    touch "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}.dockerfile"
-    touch "$PROJECT_ROOT/${comp_name}_stack/docker-compose.yml"
-    touch "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}_requirements.txt"
-
+    touch "$STACK_DIR/${comp_name}_odoo${odoo_version}.conf"
+    touch "$STACK_DIR/${comp_name}_odoo${odoo_version}.dockerfile"
+    touch "$STACK_DIR/docker-compose.yml"
+    touch "$STACK_DIR/${comp_name}_odoo${odoo_version}_requirements.txt"
     touch "$PROJECT_ROOT/caddy-sites/${comp_name}_odoo${odoo_version}.caddy"
 
     echo "✅ Demo stack files created."
@@ -124,7 +130,7 @@ else
     exit 1
 fi
 
-cat <<EOF > "$PROJECT_ROOT/${comp_name}_stack/docker-compose.yml"
+cat <<EOF > "$STACK_DIR/docker-compose.yml"
 services:
   ${comp_name}_odoo${odoo_version}:
     build:
@@ -165,7 +171,7 @@ else
     addons_path="/mnt/extra-addons"
 fi
 
-cat <<EOF > "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}.conf"
+cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}.conf"
 [options]
 admin_passwd = ${odoo_conf_admin_pass}
 db_user = ${db_user}
@@ -184,7 +190,7 @@ echo "✅ Odoo config written."
 
 write_dockerfile() {
 
-cat <<EOF > "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}.dockerfile"
+cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}.dockerfile"
 FROM odoo-custom:${odoo_version}
 
 USER root
@@ -219,7 +225,7 @@ echo "✅ Caddy site file written."
 
 write_requirements() {
 
-cat <<EOF > "$PROJECT_ROOT/${comp_name}_stack/${comp_name}_odoo${odoo_version}_requirements.txt"
+cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}_requirements.txt"
 pydantic==2.10.6
 pydantic-core==2.27.2
 email_validator==2.2.0
@@ -229,7 +235,7 @@ EOF
 echo "✅ requirements.txt written."
 }
 
-gather_inputs
+gather_inputs "$@"
 create_directory_and_files
 write_requirements
 write_docker_compose

@@ -84,7 +84,7 @@ ensure_dependencies() {
 reset_docker_environment() {
 
     # shellcheck disable=SC2162
-    read -p "Do you want a fresh Docker start? (yes/no): " confirm
+    read -p "Do you want a fresh Docker start? (HARD RESET? yes/no): " confirm
 
     if [[ "$confirm" != "yes" ]]; then
         echo "⏭️ Skipping Docker reset. Continuing with existing environment..."

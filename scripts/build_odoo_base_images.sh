@@ -6,35 +6,51 @@ START_VERSION=16
 END_VERSION=19
 
 echo ""
-read -p "Do you already have the Odoo base images built (odoo-custom:16–19)? (yes/no): " confirm
+echo "🔍 Checking for existing Odoo base images (odoo-custom:$START_VERSION–$END_VERSION)..."
 
-if [[ "$confirm" == "yes" || "$confirm" == "y" ]]; then
-    echo "⏭️ Skipping base image pull and build. Using existing images."
+missing_images=()
+
+for ((version=START_VERSION; version<=END_VERSION; version++)); do
+    if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^odoo-custom:$version$"; then
+        missing_images+=("$version")
+    fi
+done
+
+# If all images exist → skip everything
+if [[ ${#missing_images[@]} -eq 0 ]]; then
+    echo "✅ All required images already exist."
+    echo "⏭️ Skipping pull and build."
     exit 0
 fi
 
-echo "📥 Pulling base images first..."
+echo "⚠️ Missing images for versions: ${missing_images[*]}"
+echo ""
 
-for version in $(seq $START_VERSION $END_VERSION); do
+# Step 1: Pull base images only for missing versions
+echo "📥 Pulling base images..."
+
+for version in "${missing_images[@]}"; do
+    echo "⬇️ Pulling odoo:$version"
     docker pull odoo:"$version"
 done
 
+# Step 2: Build only missing images
 echo ""
 echo "🔨 Building custom images..."
 
-for version in $(seq $START_VERSION $END_VERSION); do
+for version in "${missing_images[@]}"; do
     echo "-----------------------------------"
-    echo "Building odoo-custom:$version"
+    echo "🔨 Building odoo-custom:$version"
     echo "-----------------------------------"
 
     docker build \
-    --build-arg ODOO_VERSION="$version" \
-    -t odoo-custom:"$version" \
-    -f "$PROJECT_ROOT/Dockerfile.base" \
-    "$PROJECT_ROOT"
+        --build-arg ODOO_VERSION="$version" \
+        -t odoo-custom:"$version" \
+        -f "$PROJECT_ROOT/Dockerfile.base" \
+        "$PROJECT_ROOT"
 
     echo "✅ Built odoo-custom:$version"
 done
 
 echo ""
-echo "🎉 All Odoo images built."
+echo "🎉 Odoo image setup complete!"

@@ -53,12 +53,36 @@ echo "🏗 Step 2: Building Odoo base images..."
 # --------------------------------------
 
 # Step 3: Setup base stack files
-
 # --------------------------------------
+BASE_STACK_DIR="$ROOT_DIR/base_stack"
 
 echo ""
 echo "📁 Step 3: Creating base stack files..."
-"$ROOT_DIR/scripts/setup_base_stack.sh"
+
+if [[ -d "$BASE_STACK_DIR" ]]; then
+    echo "⚠️ Directory $BASE_STACK_DIR already exists."
+
+    read -p "Do you want a fresh setup? This will overwrite existing files. (y/n): " choice
+
+    case "$choice" in
+        y|Y )
+            echo "🧹 Removing existing directory..."
+            sudo rm -rf "$BASE_STACK_DIR"
+            echo "🚀 Creating fresh base stack..."
+            "$ROOT_DIR/scripts/setup_base_stack.sh"
+            ;;
+        n|N )
+            echo "✅ Keeping existing base stack. Skipping setup."
+            ;;
+        * )
+            echo "❌ Invalid input. Please run again and choose y or n."
+            exit 1
+            ;;
+    esac
+else
+    echo "🚀 Directory not found. Creating base stack..."
+    "$ROOT_DIR/scripts/setup_base_stack.sh"
+fi
 
 # --------------------------------------
 
@@ -111,10 +135,24 @@ echo "🐳 Step 5: Starting base docker stack..."
 
 cd "$BASE_STACK_DIR"
 
-docker compose up -d
+# Check if the compose file exists
+if [[ ! -f "$BASE_STACK_DIR/docker-compose.yml" ]]; then
+    echo "❌ docker-compose.yml not found in $BASE_STACK_DIR"
+    exit 1
+fi
 
+# Check if containers from this compose are already running
+# shellcheck disable=SC2034
+running_containers=$(docker compose ps -q)
+
+# Decide to start or restart
+if [[ -n "$running_containers" ]]; then
+    echo "⚠️ Containers already exist. Restarting..."
+    docker compose restart
+else
+    echo "🚀 No existing containers. Starting..."
+    docker compose up -d
+fi
 echo ""
-echo "✅ Base stack started successfully!"
-echo ""
-echo "Running containers:"
-docker ps
+echo "✅ Base stack is up!"
+
