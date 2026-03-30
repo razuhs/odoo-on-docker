@@ -37,6 +37,7 @@ gather_inputs() {
   comp_name="${COMPANY_NAME// /_}"
   comp_name="${comp_name,,}"
 
+  # shellcheck disable=SC2153
   domain="$DOMAIN"
 
   VAR_NAME="ENTERPRISE_PATH_${odoo_version}"
@@ -52,7 +53,9 @@ gather_inputs() {
       exit 1
   fi
 
+  # shellcheck disable=SC2153
   db_user="$DB_USER"
+  # shellcheck disable=SC2153
   db_pass="$DB_PASS"
 
   pg_user="$PGADMIN_EMAIL"

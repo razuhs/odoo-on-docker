@@ -120,6 +120,9 @@ create_directory_and_files() {
 
 write_docker_compose() {
 
+# --------------------------------------
+# Volume block
+# --------------------------------------
 if [[ "$EDITION" == "EE" ]]; then
     volume_block="- ../custom-addons/odoo-${odoo_version}ee-custom-addons:/mnt/extra-addons
       - $ent_path:/mnt/odoo-${odoo_version}-ee"
@@ -130,6 +133,22 @@ else
     exit 1
 fi
 
+# --------------------------------------
+# TEMPLATE flag default
+# --------------------------------------
+TEMPLATE="${TEMPLATE:-False}"
+
+# --------------------------------------
+# Build Odoo command dynamically
+# --------------------------------------
+if [[ "$TEMPLATE" == "True" ]]; then
+    ODOO_COMMAND="odoo -d ${comp_name}-odoo${odoo_version}-db -i ${DEMO_ODOO_MODULES} --config=/etc/odoo/${comp_name}_odoo${odoo_version}.conf"
+else
+    ODOO_COMMAND="odoo -d ${comp_name}-odoo${odoo_version}-db --config=/etc/odoo/${comp_name}_odoo${odoo_version}.conf"
+fi
+# --------------------------------------
+# Write docker-compose
+# --------------------------------------
 cat <<EOF > "$STACK_DIR/docker-compose.yml"
 services:
   ${comp_name}_odoo${odoo_version}:
@@ -148,7 +167,7 @@ services:
       - odoo_db_data:/var/lib/odoo
       - ../logs/odoo-logs:/var/log/odoo
     command: >
-      odoo -d ${comp_name}-odoo${odoo_version}-db -i ${DEMO_ODOO_MODULES} --config=/etc/odoo/${comp_name}_odoo${odoo_version}.conf
+      ${ODOO_COMMAND}
     networks:
       - odoo-net
 
@@ -188,7 +207,7 @@ EOF
 echo "✅ Odoo config written."
 }
 
-write_dockerfile() {
+write_dockerfile_ext() {
 
 cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}.dockerfile"
 FROM odoo-custom:${odoo_version}
@@ -209,6 +228,15 @@ EOF
 echo "✅ Dockerfile written."
 }
 
+write_dockerfile() {
+cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}.dockerfile"
+FROM odoo-custom:${odoo_version}
+
+USER odoo
+EOF
+echo "✅ Dockerfile written."
+}
+
 write_caddy_site_file() {
 
 cat <<EOF > "$PROJECT_ROOT/caddy-sites/${comp_name}_odoo${odoo_version}.caddy"
@@ -223,7 +251,7 @@ EOF
 echo "✅ Caddy site file written."
 }
 
-write_requirements() {
+write_requirements_ext() {
 
 cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}_requirements.txt"
 pydantic==2.10.6
@@ -234,6 +262,15 @@ EOF
 
 echo "✅ requirements.txt written."
 }
+
+write_requirements() {
+
+cat <<EOF > "$STACK_DIR/${comp_name}_odoo${odoo_version}_requirements.txt"
+EOF
+
+echo "✅ requirements.txt written."
+}
+
 
 gather_inputs "$@"
 create_directory_and_files

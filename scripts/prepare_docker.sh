@@ -1,8 +1,15 @@
 #!/bin/bash
 set -e
 
+# --------------------------------------
+# GLOBAL FLAG
+# --------------------------------------
+KEEP_ODOO_IMAGES=false
+
+# --------------------------------------
+# Ensure dependencies
+# --------------------------------------
 ensure_dependencies() {
-    set -e
     echo "🔍 Ensuring required dependencies and Docker environment..."
 
     install_if_missing() {
@@ -21,41 +28,36 @@ ensure_dependencies() {
     echo "📦 Updating package list..."
     sudo apt-get update
 
-    # Ensure required packages
     install_if_missing git git
     install_if_missing unzip unzip
     install_if_missing inotifywait inotify-tools
     install_if_missing docker docker.io
 
-    # Ensure Docker Compose plugin
     if ! docker compose version >/dev/null 2>&1; then
-        echo "❌ Docker Compose plugin is required but not installed. Installing..."
+        echo "❌ Docker Compose plugin missing. Installing..."
         sudo apt-get install -y docker-compose-plugin
-        echo "✅ Docker Compose plugin installed successfully."
+        echo "✅ Docker Compose plugin installed."
     else
         echo "✅ Docker Compose plugin is already installed."
     fi
 
-    # Check Docker daemon
     if ! systemctl is-active --quiet docker; then
-        echo "⚠️ Docker daemon is not running. Starting..."
+        echo "⚠️ Docker daemon not running. Starting..."
         sudo systemctl start docker
     fi
 
     echo "✅ Docker daemon running."
 
-    # Detect Docker root directory
     DOCKER_ROOT=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)
 
-    if [ -z "$DOCKER_ROOT" ]; then
+    if [[ -z "$DOCKER_ROOT" ]]; then
         echo "❌ Unable to determine Docker root directory."
         exit 1
     fi
 
-    echo "Docker Root Dir: $DOCKER_ROOT"
+    echo "📂 Docker Root Dir: $DOCKER_ROOT"
 
-    # Ensure Docker tmp directory
-    if [ ! -d "$DOCKER_ROOT/tmp" ]; then
+    if [[ ! -d "$DOCKER_ROOT/tmp" ]]; then
         echo "⚠️ Creating Docker tmp directory..."
         sudo mkdir -p "$DOCKER_ROOT/tmp"
         sudo chmod 0711 "$DOCKER_ROOT/tmp"
@@ -63,79 +65,135 @@ ensure_dependencies() {
 
     echo "✅ Docker tmp directory ready."
 
-    # Restart Docker to stabilize
-    echo "🔄 Restarting Docker service..."
+    echo "🔄 Restarting Docker..."
     sudo systemctl restart docker
     sleep 3
 
-    # Test Docker image pull
-    echo "📦 Testing Docker image pull..."
-
+    echo "📦 Testing Docker pull..."
     if docker pull hello-world >/dev/null 2>&1; then
-        echo "✅ Docker image pull successful."
+        echo "✅ Docker working correctly."
     else
-        echo "❌ Docker image pull failed."
+        echo "❌ Docker pull failed."
         exit 1
     fi
 
-    echo "🎉 All dependencies and Docker environment are ready."
+    echo "🎉 Dependencies ready."
 }
 
+# --------------------------------------
+# Detect Odoo images
+# --------------------------------------
+handle_odoo_images() {
+    echo ""
+    echo "🔍 Checking Odoo images (16–19)..."
+
+    local versions=(16 17 18 19)
+    local repos=("odoo" "odoo-custom")
+    local found=()
+
+    for repo in "${repos[@]}"; do
+        for v in "${versions[@]}"; do
+            img="${repo}:${v}"
+            if docker image inspect "$img" >/dev/null 2>&1; then
+                echo "✔ Found: $img"
+                found+=("$img")
+            fi
+        done
+    done
+
+    if [[ ${#found[@]} -eq 0 ]]; then
+        echo "ℹ️ No Odoo images found."
+        KEEP_ODOO_IMAGES=false
+        return
+    fi
+
+    echo ""
+    echo "⚠️ These images are large and time-consuming to rebuild:"
+    for img in "${found[@]}"; do
+        echo " - $img"
+    done
+
+    echo ""
+    read -p "👉 Keep these images? (recommended) (y/n): " choice
+
+    if [[ "$choice" =~ ^[Yy]$ ]]; then
+        KEEP_ODOO_IMAGES=true
+        echo "✅ Will preserve Odoo images."
+    else
+        KEEP_ODOO_IMAGES=false
+        echo "🗑️ Will remove Odoo images."
+    fi
+}
+
+# --------------------------------------
+# Reset Docker
+# --------------------------------------
 reset_docker_environment() {
 
-    # shellcheck disable=SC2162
-    read -p "Do you want a fresh Docker start? (HARD RESET? yes/no): " confirm
+    read -p "🔥 Do you want HARD Docker reset? (yes/no): " confirm
 
     if [[ "$confirm" != "yes" ]]; then
-        echo "⏭️ Skipping Docker reset. Continuing with existing environment..."
-        return 0
+        echo "⏭️ Skipping Docker reset."
+        return
     fi
 
     echo ""
-    echo "⚠️  WARNING: The following actions will be performed:"
-    echo "  - Stop ALL running containers"
-    echo "  - Remove ALL containers"
-    echo "  - Remove ALL Docker images"
-    echo "  - Remove ALL volumes"
-    echo "  - Remove unused networks"
-    echo "  - Run full docker system prune"
-    echo ""
-    echo "This action cannot be undone."
+    echo "⚠️ This will REMOVE:"
+    echo " - All containers"
+    echo " - All volumes"
+    echo " - All networks"
+    echo " - Most images"
     echo ""
 
-    # shellcheck disable=SC2162
-    read -p "Are you absolutely sure you want to continue? (type 'CONFIRM'): " confirm_final
+    read -p "Type 'CONFIRM' to continue: " confirm2
 
-    if [[ "$confirm_final" != "CONFIRM" ]]; then
-        echo "❌ Operation cancelled."
-        return 0
+    if [[ "$confirm2" != "CONFIRM" ]]; then
+        echo "❌ Cancelled."
+        return
     fi
 
-    echo "🛑 Stopping all containers..."
-    # shellcheck disable=SC2046
+    # Detect images first
+    handle_odoo_images
+
+    echo "🛑 Stopping containers..."
     docker stop $(docker ps -aq) 2>/dev/null || true
 
-    echo "🧹 Removing all containers..."
-    # shellcheck disable=SC2046
+    echo "🧹 Removing containers..."
     docker rm $(docker ps -aq) 2>/dev/null || true
 
-    echo "🗑 Removing all images..."
-    # shellcheck disable=SC2046
-    docker rmi -f $(docker images -aq) 2>/dev/null || true
+    echo "🗑 Removing images..."
 
-    echo "📦 Removing all volumes..."
-    # shellcheck disable=SC2046
+    if [[ "$KEEP_ODOO_IMAGES" == true ]]; then
+        echo "⚠️ Preserving Odoo images..."
+
+        for img in $(docker images -aq); do
+            tags=$(docker inspect --format='{{.RepoTags}}' "$img" 2>/dev/null || echo "")
+
+            if echo "$tags" | grep -qE 'odoo:(16|17|18|19)|odoo-custom:(16|17|18|19)'; then
+                echo "⏭ Skipping $tags"
+            else
+                docker rmi -f "$img" 2>/dev/null || true
+            fi
+        done
+    else
+        docker rmi -f $(docker images -aq) 2>/dev/null || true
+    fi
+
+    echo "📦 Removing volumes..."
     docker volume rm $(docker volume ls -q) 2>/dev/null || true
     docker volume prune -f
 
-    echo "🌐 Cleaning unused networks..."
+    echo "🌐 Cleaning networks..."
     docker network prune -f
 
-    echo "🧼 Performing full system prune..."
+    echo "🧼 System prune..."
     docker system prune -a --volumes -f
 
-    echo "✅ Docker environment cleaned successfully."
+    echo "✅ Docker reset complete."
 }
 
+# --------------------------------------
+# Run
+# --------------------------------------
 ensure_dependencies
 reset_docker_environment

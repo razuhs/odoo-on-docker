@@ -1,6 +1,0 @@
-test18ce.app-odoo.bjitgroup.org {
-    reverse_proxy test18ce_odoo18:8069
-    log {
-        output file /caddy-logs/test18ce_odoo18_access.log
-    }
-}

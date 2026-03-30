@@ -155,4 +155,5 @@ else
 fi
 echo ""
 echo "✅ Base stack is up!"
+echo "https://${DOMAIN}/odoo"
 
