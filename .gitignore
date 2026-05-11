@@ -209,5 +209,14 @@ __marimo__/
 Caddyfile
 docker-compose.yml
 
-# Generated directories
-caddy-sites/ custom-addons/ logs/ base_stack/ demo_stack/
+# Generated directories and common ignore patterns
+caddy-sites/
+custom-addons/
+logs/
+
+# Ignore directories ending with _stack
+*_stack/
+
+# Ignore config files - exclude all except .base_stack.conf
+configs/*
+!configs/.base_stack.conf

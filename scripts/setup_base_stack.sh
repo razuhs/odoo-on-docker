@@ -86,18 +86,34 @@ gather_inputs() {
 }
 # create custom-addons directories for every version of odoo
 create_custom_addons_directories() {
+
+    START=16
+    LATEST=19
     echo "Creating file and directory structure..."
     mkdir -p "$custom_addons_dir"
 
     types=("ee" "ce")
-    # create directory for custom-addons used by every version of odoo
+    repo="https://github.com/odoo/industry.git"
+
     for ((v=START; v<=LATEST; v++)); do
         for t in "${types[@]}"; do
-            mkdir -p "$custom_addons_dir/odoo-${v}${t}-custom-addons"
+            dir="$custom_addons_dir/odoo-${v}${t}-custom-addons"
+            mkdir -p "$dir"
+
+            if [[ "$t" == "ee" ]]; then
+                branch="${v}.0"
+
+                if git ls-remote --exit-code --heads "$repo" "$branch" >/dev/null 2>&1; then
+                    echo "Cloning branch $branch into $dir"
+                    git clone -b "$branch" --depth 1 "$repo" "$dir"
+                else
+                    echo "Skipping $dir: branch $branch not available in industry repo"
+                fi
+            fi
         done
     done
 
-    echo "✅ Custom-Addons Directory structure created successfully."
+    echo "✅ Custom-Addons directory structure created successfully."
 }
 
 

@@ -32,6 +32,7 @@ fi
 
 CONTAINER_ID=$(docker compose ps -q "$SERVICE_NAME")
 
+
 if [[ -z "$CONTAINER_ID" ]]; then
     echo "⚠️ Odoo container not running. Starting it..."
     docker compose up -d "$SERVICE_NAME"
