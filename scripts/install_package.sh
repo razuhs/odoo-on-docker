@@ -1,4 +1,44 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: install_package.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Install Python packages into the running Odoo container for
+# a specified stack directory.
+#
+# Usage:
+# ------
+# ./install_package.sh <stack_directory>
+#
+# Example:
+# --------
+# ./install_package.sh demo_stack
+#
+# Behavior:
+# ---------
+# 1. Resolve stack directory from project root + input argument
+# 2. Detect Odoo service name from docker compose
+# 3. Verify the Odoo container is running
+# 4. Find a requirements file in the stack root
+# 5. Copy requirements file into container as /tmp/requirements.txt
+# 6. Run pip install inside container
+#
+# Requirements:
+# -------------
+# - Docker and docker compose available
+# - Target stack directory must exist under project root
+# - Odoo service/container must be running
+# - A requirements file matching *requirements*.txt must exist
+#
+# Notes:
+# ------
+# - If no requirements file is found, the script exits without error.
+# - Package installation uses pip with --break-system-packages.
+#
+# ==========================================================
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

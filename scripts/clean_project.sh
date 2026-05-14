@@ -1,4 +1,22 @@
 #!/bin/bash
+
+# clean_project.sh
+#
+# Purpose:
+#   Remove generated stack folders and temporary project artifacts.
+#
+# What it removes:
+#   - Top-level directories matching template*, test*
+#   - Specific directories: demo_stack, base_stack, caddy-sites, logs, custom-addons
+#   - Config files in configs/ matching .template* and .test*
+#
+# Safety:
+#   - Prints all targets before deletion
+#   - Requires explicit confirmation: type "yes"
+#
+# Requirements:
+#   - sudo permission for directory removal
+
 set -e
 
 # --------------------------------------

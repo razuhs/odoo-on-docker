@@ -1,19 +1,120 @@
 #!/bin/bash
-set -e
 
 # ==========================================================
-# 📘 SCRIPT: generate_test_configs.sh
+# SCRIPT: generate_test_configs.sh
 # ==========================================================
 #
-# 🚀 Purpose:
-# ------------
-# Generates TEST configuration files from template patterns.
+# Purpose:
+# --------
+# This script automatically generates test configuration files
+# for multiple Odoo versions, editions, and data modes.
 #
-# Differences from template configs:
-# - "template" → replaced with "test"
-# - TEMPLATE=False (DB will be cloned from template)
+# It creates ready-to-use config files for test stacks that
+# are based on existing template databases.
+#
+#
+# Usage:
+# ------
+# ./generate_test_configs.sh
+#
+#
+# Output Location:
+# ----------------
+# All config files are generated inside:
+#   configs/
+#
+#
+# Generated Config Pattern:
+# -------------------------
+# .test<version><edition><data_flag>_stack.conf
+#
+# Where:
+#   <version>      -> Odoo version (16, 17, 18, 19)
+#   <edition>      -> ce (Community) / ee (Enterprise)
+#   <data_flag>    -> wdd / wodd
+#
+#
+# Naming Breakdown:
+# -----------------
+# Example:
+#   .test19eewdd_stack.conf
+#
+#   test       -> test instance
+#   19         -> Odoo version
+#   ee         -> Enterprise edition
+#   wdd        -> With demo data
+#   wodd       -> Without demo data
+#
+#
+# Generated Variants:
+# -------------------
+# For each version, the script generates:
+#
+#   Community Edition (CE):
+#     - with demo data     -> ce + wdd
+#     - without demo data  -> ce + wodd
+#
+#   Enterprise Edition (EE):
+#     - with demo data     -> ee + wdd
+#     - without demo data  -> ee + wodd
+#
+# Total per version: 4 configs
+# Total versions:    4 (16-19)
+#
+# Total files: 16 configs
+#
+#
+# Each Generated Config Contains:
+# -------------------------------
+# - DEMO_ODOO_VERSION
+# - DEMO_COMPANY_NAME
+# - DEMO_DATA
+# - DEMO_ODOO_MODULES
+# - EDITION
+# - TEMPLATE=False
+#
+#
+# Purpose of Generated Configs:
+# -----------------------------
+# These configs are used to:
+#
+# 1. Create test stacks from existing templates
+#
+# 2. Run isolated validation and QA checks
+#
+# 3. Keep repeatable test environment naming
+#
+#
+# Important Notes:
+# ----------------
+# - All generated configs have:
+#     TEMPLATE=False
+#   -> meaning they are normal, runnable test instances
+#      (not template DB creators)
+#
+# - DEMO_DATA flag follows project logic:
+#     False -> load demo data
+#     True  -> no demo data
+#
+# - Existing files prompt for overwrite:
+#     y = overwrite current file
+#     n = skip current file
+#     a = overwrite all remaining files
+#
+#
+# Related Scripts:
+# ----------------
+# - generate_template_configs.sh
+#     -> Generate template stack configs
+#
+# - start_demo_stack.sh
+#     -> Create and run stack from config
+#
+# - remove_stack.sh
+#     -> Clean up stack resources
 #
 # ==========================================================
+set -e
 
 
 # --------------------------------------

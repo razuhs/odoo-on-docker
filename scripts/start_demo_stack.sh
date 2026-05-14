@@ -1,4 +1,63 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: start_demo_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Start a demo/test stack from a selected config file.
+#
+# This script can either:
+# - create/recreate stack files via setup_demo_stack.sh, and
+# - start/restart the stack containers,
+# - optionally clone DB + filestore from a template stack when TEMPLATE=False.
+#
+# Usage:
+# ------
+# ./start_demo_stack.sh [config_file]
+#
+# Example:
+# --------
+# ./start_demo_stack.sh .demo19eewdd_stack.conf
+#
+# Input configs:
+# --------------
+# - configs/<config_file> (default: .demo_stack.conf)
+# - configs/.base_stack.conf
+#
+# Key behavior:
+# -------------
+# 1. Loads demo and base config values.
+# 2. Builds stack directory name from config filename.
+# 3. Creates stack files if missing, or prompts for overwrite.
+# 4. If TEMPLATE=False:
+#    - creates DB by cloning from template DB,
+#    - brings stack up once to create target volume,
+#    - copies filestore from template volume to target volume,
+#    - fixes ownership and permissions.
+# 5. Starts or restarts stack containers.
+# 6. Restarts caddy-proxy and waits until login URL is reachable.
+#
+# Template cloning logic:
+# -----------------------
+# - Selects template DB/volume names using version + edition + demo-data suffix.
+# - Supports filestore path variants used by different Odoo versions.
+# - Validates required docker volumes before copy.
+#
+# Output:
+# -------
+# - Running stack containers for selected demo config
+# - Accessible login URL printed at the end
+#
+# Requirements:
+# -------------
+# - Docker and docker compose
+# - Running postgres-container and caddy-proxy
+# - Valid template DB/volume when TEMPLATE=False
+# - curl for reachability check
+#
+# ==========================================================
 set -e
 
 # --------------------------------------

@@ -1,4 +1,41 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: restart_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Restart (or start) the Odoo service container for a given
+# stack directory.
+#
+# Usage:
+# ------
+# ./restart_stack.sh <stack_directory>
+#
+# Example:
+# --------
+# ./restart_stack.sh demo_stack
+#
+# Behavior:
+# ---------
+# 1. Resolve stack path from project root and input argument.
+# 2. Detect the Odoo service from docker compose services.
+# 3. If service container is running: restart it.
+# 4. If service container is not running: start it with compose up -d.
+#
+# Requirements:
+# -------------
+# - Docker and docker compose available
+# - Valid stack directory containing docker-compose.yml
+# - Odoo service name in compose output contains "odoo"
+#
+# Output:
+# -------
+# - Success message when restart/start completes.
+# - Clear error if stack or Odoo service cannot be found.
+#
+# ==========================================================
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

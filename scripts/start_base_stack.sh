@@ -1,4 +1,61 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: start_base_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# End-to-end bootstrap for the base Odoo stack. This script prepares
+# Docker, builds base images, ensures base stack files exist, and starts
+# or restarts the base docker compose services.
+#
+# Usage:
+# ------
+# ./start_base_stack.sh
+#
+# Input configuration:
+# --------------------
+# - configs/.base_stack.conf
+#   Required keys include COMPANY_NAME, ODOO_VERSION, DOMAIN, and other
+#   values consumed by dependent scripts.
+#
+# Execution steps:
+# ----------------
+# 1. Prepare Docker environment
+#    -> runs scripts/prepare_docker.sh
+#
+# 2. Build Odoo base images
+#    -> runs scripts/build_odoo_base_images.sh
+#
+# 3. Ensure base stack files
+#    -> if base_stack exists, prompts for fresh setup
+#    -> runs scripts/setup_base_stack.sh when creating fresh files
+#
+# 4. Verify required files in base_stack
+#    -> waits up to 30 seconds per file for generated artifacts
+#
+# 5. Start or restart docker compose stack
+#    -> restart if containers already exist
+#    -> up -d if no existing containers are found
+#
+# Output:
+# -------
+# - Running base stack containers
+# - Final URL print: https://<DOMAIN>/odoo
+#
+# Safety and prompts:
+# -------------------
+# - Existing base_stack directory is not removed unless user confirms.
+# - Script exits on missing config/required files/timeouts.
+#
+# Requirements:
+# -------------
+# - Docker and docker compose available
+# - sudo permission for file operations in dependent scripts
+# - Valid configs/.base_stack.conf
+#
+# ==========================================================
 set -e
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

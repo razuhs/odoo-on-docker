@@ -1,4 +1,55 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: setup_base_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Build and configure the base Odoo stack workspace from
+# configs/.base_stack.conf for versions 16 through 19.
+#
+# What this script does:
+# ----------------------
+# 1. Loads base configuration and validates selected version
+# 2. Resolves Enterprise addons path for selected version
+# 3. Recreates base project directories and required files
+# 4. Clones industry addons into EE custom-addons directories
+# 5. Extracts muk_web_theme into CE custom-addons directories
+# 6. Generates docker-compose, Odoo conf, Dockerfile, Caddy, pgAdmin,
+#    requirements, and related stack files
+#
+# Input source:
+# -------------
+# - configs/.base_stack.conf
+#   Required values include COMPANY_NAME, DOMAIN, DB_USER, DB_PASS,
+#   PGADMIN_EMAIL, PGADMIN_PASS, ODOO_ADMIN_PASS, LOAD_DEMO_DATA,
+#   and ENTERPRISE_PATH_<version> variables.
+#
+# Generated output:
+# -----------------
+# - base_stack/ (compose, Odoo conf, Dockerfile, requirements, pgadmin)
+# - custom-addons/odoo-<version>{ee|ce}-custom-addons
+# - logs/odoo-logs and logs/caddy-logs
+# - caddy-sites/base_stack_<company>_odoo<version>.caddy
+#
+# Safety and side effects:
+# ------------------------
+# - Removes and recreates: base_stack, custom-addons, logs,
+#   caddy-sites, and demo_stack under project root.
+# - Creates DB system user if missing.
+#
+# Usage:
+# ------
+# ./setup_base_stack.sh
+#
+# Requirements:
+# -------------
+# - git, unzip, sudo permissions
+# - Docker tooling available for later stack startup
+# - Valid paths in configs/.base_stack.conf
+#
+# ==========================================================
 set -euo pipefail
 
 custom_addons_dir="$(cd "$(dirname "$0")/.." && pwd)/custom-addons"

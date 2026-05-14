@@ -1,4 +1,60 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: remove_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Fully remove a stack environment, including containers,
+# volumes, stack files, and related logs/site config.
+#
+# Usage:
+# ------
+# ./remove_stack.sh <stack_directory_name> [--with-db]
+#
+# Examples:
+# ---------
+# ./remove_stack.sh demo_stack
+# ./remove_stack.sh demo_stack --with-db
+#
+# Behavior:
+# ---------
+# - Validates stack directory and required config files.
+# - Detects database name and container name from docker-compose.yml.
+# - Runs docker compose down and volume cleanup.
+# - Removes stack log files and Caddy site config.
+# - Permanently deletes filestore data (all volumes).
+# - Deletes stack directory from disk.
+# - If --with-db is passed, also drops the stack database.
+#
+# Permanent deletion includes:
+# ---------------------------
+# - ALL Docker volumes associated with the stack (filestore data)
+# - Stack configuration and Dockerfile
+# - All logs (Odoo + Caddy)
+# - Caddy site routing config
+#
+# Database Deletion Mode:
+# -----------------------
+# When --with-db is provided, the script will:
+# 1. Terminate active DB connections
+# 2. Disable template mode on the DB (if enabled)
+# 3. Drop the database
+#
+# Safety:
+# -------
+# - Prompts for explicit confirmation before destructive actions.
+# - Without "yes" confirmation, script exits without deleting resources.
+#
+# Requirements:
+# -------------
+# - Docker and docker compose available
+# - Access to postgres-container
+# - Valid DB_USER in configs/.base_stack.conf
+# - sudo permission for file/log cleanup
+#
+# ==========================================================
 set -e
 
 # --------------------------------------
@@ -11,6 +67,7 @@ fi
 
 STACK_NAME="$1"
 DELETE_DB_FLAG="$2"
+DELETE_FILESTORE="no"
 
 # --------------------------------------
 # Paths
@@ -54,13 +111,15 @@ cd "$STACK_DIR"
 echo ""
 echo "⚠️ This will COMPLETELY REMOVE:"
 echo "   - Containers"
-echo "   - Volumes (filestore will be LOST)"
 echo "   - Stack directory"
 echo "   - Logs (Odoo + Caddy)"
 echo "   - Caddy site config"
 
 if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
     echo "   - Database (INCLUDING TEMPLATE)"
+    echo "   - Filestore volumes (ASKED SEPARATELY)"
+else
+    echo "   - Filestore volumes (NOT deleted)"
 fi
 
 echo ""
@@ -71,6 +130,23 @@ if [[ "$CONFIRM" != "yes" ]]; then
     exit 0
 fi
 
+if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
+    read -p "Also delete filestore volumes? (yes/no): " FILESTORE_CONFIRM
+
+    case "$FILESTORE_CONFIRM" in
+        yes|y|Y|YES)
+            DELETE_FILESTORE="yes"
+            ;;
+        no|n|N|NO)
+            DELETE_FILESTORE="no"
+            ;;
+        *)
+            echo "❌ Invalid input. Please use yes or no."
+            exit 1
+            ;;
+    esac
+fi
+
 # --------------------------------------
 # Stop and remove containers
 # --------------------------------------
@@ -78,26 +154,30 @@ echo "🛑 Removing containers..."
 docker compose down --remove-orphans
 
 # --------------------------------------
-# Remove volumes
-# --------------------------------------
-echo "🧹 Removing volumes..."
-docker compose down -v --remove-orphans
-
-# --------------------------------------
-# Remove leftover volumes
-# --------------------------------------
-echo "🔍 Cleaning leftover volumes..."
-
-VOLUMES=$(docker volume ls --format '{{.Name}}' | grep "^${STACK_NAME}_odoo_db_data" || true)
-
-if [[ -n "$VOLUMES" ]]; then
-    echo "$VOLUMES" | xargs -r docker volume rm
-fi
-
-# --------------------------------------
 # Delete database (INCLUDING template)
 # --------------------------------------
 if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
+
+    # --------------------------------------
+    # Optional filestore deletion (only when --with-db is used)
+    # --------------------------------------
+    if [[ "$DELETE_FILESTORE" == "yes" ]]; then
+        echo "🧹 Removing selected stack filestore volume only..."
+
+        # Compose project-name defaults to directory name, so this resolves to
+        # the exact filestore volume for the selected stack.
+        FILESTORE_VOLUME="${STACK_NAME}_odoo_db_data"
+
+        if docker volume inspect "$FILESTORE_VOLUME" >/dev/null 2>&1; then
+            echo "📦 Removing filestore volume: $FILESTORE_VOLUME"
+            docker volume rm "$FILESTORE_VOLUME"
+            echo "✅ Filestore volume removed"
+        else
+            echo "ℹ️ Filestore volume not found: $FILESTORE_VOLUME"
+        fi
+    else
+        echo "⏭️ Keeping filestore volumes (user chose not to delete)."
+    fi
 
     echo "🗑️ Removing database: $db_name"
 
@@ -117,6 +197,8 @@ if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
     docker exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name" >/dev/null 2>&1 || true
 
     echo "✅ Database removed"
+else
+    echo "⏭️ --with-db not provided. Skipping database and filestore deletion."
 fi
 
 # --------------------------------------

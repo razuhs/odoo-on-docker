@@ -1,4 +1,19 @@
 #!/bin/bash
+
+# build_odoo_base_images.sh
+#
+# Purpose:
+#   Ensure custom Odoo base images exist for versions START_VERSION..END_VERSION.
+#
+# Behavior:
+#   1) Detect missing images named odoo-custom:<version>
+#   2) Pull official odoo:<version> for missing versions only
+#   3) Build odoo-custom:<version> from Dockerfile.base for missing versions only
+#
+# Notes:
+#   - If all required images exist, the script exits without pulling/building.
+#   - Docker CLI access is required.
+
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

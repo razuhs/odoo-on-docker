@@ -1,4 +1,51 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: prepare_docker.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Prepare Docker on the host machine for this Odoo project by:
+# 1) ensuring required packages are installed,
+# 2) validating Docker daemon/runtime health,
+# 3) optionally performing a hard Docker reset.
+#
+#
+# Usage:
+# ------
+# ./prepare_docker.sh
+#
+#
+# Main Flow:
+# ----------
+# 1. ensure_dependencies
+#    - apt update
+#    - install missing tools (git, unzip, inotify-tools, docker.io)
+#    - install Docker Compose plugin if missing
+#    - start/restart Docker daemon
+#    - verify Docker by pulling hello-world
+#
+# 2. reset_docker_environment (interactive)
+#    - asks for explicit confirmation before destructive operations
+#    - optionally preserves Odoo images (odoo:16-19, odoo-custom:16-19)
+#    - removes containers, images, volumes, networks, and prunes system
+#
+#
+# Safety and Prompts:
+# -------------------
+# - Hard reset is NOT run unless user types: yes
+# - Final destructive confirmation requires typing: CONFIRM
+# - User can choose to preserve Odoo images to avoid rebuild time
+#
+#
+# Requirements:
+# -------------
+# - Ubuntu/Debian-style package manager (apt-get)
+# - sudo privileges
+# - Internet access (package installs and docker pull test)
+#
+# ==========================================================
 set -e
 
 # --------------------------------------

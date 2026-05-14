@@ -1,4 +1,69 @@
 #!/bin/bash
+
+# ==========================================================
+# SCRIPT: setup_demo_stack.sh
+# ==========================================================
+#
+# Purpose:
+# --------
+# Create and configure a demo/test stack from config files,
+# then generate all required runtime files for an Odoo container.
+#
+# Usage:
+# ------
+# ./setup_demo_stack.sh <demo_config_file> <stack_directory_name>
+#
+# Example:
+# --------
+# ./setup_demo_stack.sh .demo19eewdd_stack.conf demo19eewdd_stack
+#
+# Input files:
+# ------------
+# - configs/.base_stack.conf
+#   Provides shared/global values (DOMAIN, DB_USER, DB_PASS,
+#   ODOO_ADMIN_PASS, ENTERPRISE_PATH_<version>, etc.).
+#
+# - configs/<demo_config_file>
+#   Provides stack-specific values (DEMO_ODOO_VERSION,
+#   DEMO_COMPANY_NAME, DEMO_DATA, EDITION, TEMPLATE,
+#   DEMO_ODOO_MODULES).
+#
+# Main flow:
+# ----------
+# 1. Validate and load base + demo config files
+# 2. Validate Odoo version range (16-19)
+# 3. Resolve edition-specific addons path (EE/CE)
+# 4. Create or overwrite stack directory structure
+# 5. Generate files:
+#    - docker-compose.yml
+#    - <company>_odoo<version>.conf
+#    - <company>_odoo<version>.dockerfile
+#    - <company>_odoo<version>_requirements.txt
+#    - caddy-sites/<company>_odoo<version>.caddy
+#
+# Edition behavior:
+# -----------------
+# - EE: mounts enterprise addons path + EE custom addons
+# - CE: mounts CE custom addons only
+#
+# TEMPLATE behavior:
+# ------------------
+# - TEMPLATE=True: first run installs DEMO_ODOO_MODULES
+# - TEMPLATE=False: starts database without install step
+#
+# Side effects:
+# -------------
+# - May delete existing stack directory when overwrite is confirmed.
+# - Writes/overwrites stack and caddy files for the target stack.
+#
+# Requirements:
+# -------------
+# - Existing odoo-net Docker network
+# - Base stack services already available (db, caddy)
+# - Valid custom-addons paths and enterprise path for EE
+# - sudo permission for directory ownership/permission updates
+#
+# ==========================================================
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
