@@ -4,7 +4,13 @@
 #
 # Purpose:
 #   Prepare and refresh local Odoo server repositories, update database
-#   expiration settings, and restart stack directories.
+#   expiration settings, recreate and restart stack directories.
+#
+# Scheduler:
+#   Defined in: /etc/cron.d/update_odoo
+#   Schedule:   0 19 * * * (daily at 19:00 UTC / 01:00 AM BDT)
+#   Run as:     bjit
+#   To edit:    sudo nano /etc/cron.d/update_odoo
 #
 # Execution order:
 #   1) clone_odoo_servers
@@ -111,11 +117,19 @@ restart_stack_directories() {
     echo "Stack directories: ${stack_directories[*]}"
 
     for directory_name in "${stack_directories[@]}"; do
+        echo "Recreating stack ${directory_name}..."
+        if ! (cd "$PARENT_DIR/$directory_name" && docker compose up -d --force-recreate); then
+            echo "ERROR: Failed to recreate stack ${directory_name}" >&2
+            exit 1
+        fi
+
         echo "Restarting stack ${directory_name}..."
         if ! (cd "$SCRIPT_DIR" && ./restart_stack.sh "$directory_name"); then
             echo "ERROR: Failed to restart stack ${directory_name}" >&2
             exit 1
         fi
+
+        
     done
 }
 

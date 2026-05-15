@@ -51,7 +51,7 @@ if [[ ! -f "$LOG_FILE" ]]; then
     echo "❌ Log file not found: $LOG_FILE"
     echo ""
     echo "The log will be created when update_all.sh runs for the first time."
-    echo "Scheduled time: 23:00 UTC (5:00 AM BDT)"
+    echo "Scheduled time: 19:00 UTC (1:00 AM BDT)"
     exit 1
 fi
 
