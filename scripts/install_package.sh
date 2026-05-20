@@ -41,6 +41,34 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
+compose_cmd() {
+    if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    elif sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
+        sudo docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        if docker info >/dev/null 2>&1; then
+            docker-compose "$@"
+        else
+            sudo docker-compose "$@"
+        fi
+    else
+        echo "❌ Docker Compose is not available. Install docker-compose-plugin or docker-compose."
+        exit 1
+    fi
+}
+
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 STACK_NAME="$1"
@@ -63,7 +91,7 @@ cd "$STACK_DIR"
 
 echo "🔎 Detecting Odoo container..."
 
-CONTAINER_NAME=$(docker compose ps --services | grep odoo | head -n1)
+CONTAINER_NAME=$(compose_cmd ps --services | grep odoo | head -n1)
 
 if [[ -z "$CONTAINER_NAME" ]]; then
     echo "❌ No Odoo service found in docker-compose.yml"
@@ -72,7 +100,7 @@ fi
 
 echo "✔ Odoo service detected: $CONTAINER_NAME"
 
-CONTAINER_ID=$(docker compose ps -q "$CONTAINER_NAME")
+CONTAINER_ID=$(compose_cmd ps -q "$CONTAINER_NAME")
 
 if [[ -z "$CONTAINER_ID" ]]; then
     echo "❌ Container not running"
@@ -88,8 +116,8 @@ fi
 
 echo "📦 Installing packages from $REQ_FILE"
 
-docker cp "$REQ_FILE" "$CONTAINER_ID:/tmp/requirements.txt"
+docker_cmd cp "$REQ_FILE" "$CONTAINER_ID:/tmp/requirements.txt"
 
-docker exec -it "$CONTAINER_ID" pip install --break-system-packages -r /tmp/requirements.txt
+docker_cmd exec -it "$CONTAINER_ID" pip install --break-system-packages -r /tmp/requirements.txt
 
 echo "✅ Packages installed successfully"

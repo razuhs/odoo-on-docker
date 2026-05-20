@@ -58,6 +58,70 @@
 # ==========================================================
 set -e
 
+COMPOSE_MODE=""
+
+resolve_compose_mode() {
+    if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        COMPOSE_MODE="docker-compose-plugin"
+        return
+    fi
+
+    if sudo -n docker info >/dev/null 2>&1 && sudo -n docker compose version >/dev/null 2>&1; then
+        COMPOSE_MODE="sudo-docker-compose-plugin"
+        return
+    fi
+
+    if command -v docker-compose >/dev/null 2>&1; then
+        if docker info >/dev/null 2>&1; then
+            COMPOSE_MODE="docker-compose-bin"
+            return
+        fi
+
+        if sudo -n docker info >/dev/null 2>&1; then
+            COMPOSE_MODE="sudo-docker-compose-bin"
+            return
+        fi
+    fi
+
+    echo "⚠️ Docker requires sudo for this user."
+    echo "🔐 Please authenticate once for Docker/Compose commands..."
+    sudo -v
+
+    if sudo -n docker info >/dev/null 2>&1 && sudo -n docker compose version >/dev/null 2>&1; then
+        COMPOSE_MODE="sudo-docker-compose-plugin"
+        return
+    fi
+
+    if command -v docker-compose >/dev/null 2>&1 && sudo -n docker info >/dev/null 2>&1; then
+        COMPOSE_MODE="sudo-docker-compose-bin"
+        return
+    fi
+
+    echo "❌ Docker Compose is not available. Install docker-compose-plugin or docker-compose."
+    exit 1
+}
+
+compose_cmd() {
+    case "$COMPOSE_MODE" in
+        docker-compose-plugin)
+            docker compose "$@"
+            ;;
+        sudo-docker-compose-plugin)
+            sudo docker compose "$@"
+            ;;
+        docker-compose-bin)
+            docker-compose "$@"
+            ;;
+        sudo-docker-compose-bin)
+            sudo docker-compose "$@"
+            ;;
+        *)
+            echo "❌ Compose mode is not initialized."
+            exit 1
+            ;;
+    esac
+}
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BASE_STACK_DIR="$ROOT_DIR/base_stack"
 CONFIG_FILE="$ROOT_DIR/configs/.base_stack.conf"
@@ -86,6 +150,8 @@ echo "   ODOO_VERSION=$ODOO_VERSION"
 CONF_FILE="${COMPANY_NAME}_odoo${ODOO_VERSION}.conf"
 DOCKERFILE="${COMPANY_NAME}_odoo${ODOO_VERSION}.dockerfile"
 REQ_FILE="${COMPANY_NAME}_odoo${ODOO_VERSION}_requirements.txt"
+
+resolve_compose_mode
 
 # --------------------------------------
 
@@ -200,15 +266,15 @@ fi
 
 # Check if containers from this compose are already running
 # shellcheck disable=SC2034
-running_containers=$(docker compose ps -q)
+running_containers=$(compose_cmd ps -q)
 
 # Decide to start or restart
 if [[ -n "$running_containers" ]]; then
     echo "⚠️ Containers already exist. Restarting..."
-    docker compose restart
+    compose_cmd restart
 else
     echo "🚀 No existing containers. Starting..."
-    docker compose up -d
+    compose_cmd up -d
 fi
 echo ""
 echo "✅ Base stack is up!"

@@ -44,8 +44,8 @@
 #
 # Safety:
 # -------
-# - Prompts for explicit confirmation before destructive actions.
-# - Without "yes" confirmation, script exits without deleting resources.
+# - Runs non-interactively (no prompts).
+# - `--with-db` deletes database + filestore; otherwise both are preserved.
 #
 # Requirements:
 # -------------
@@ -57,6 +57,34 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
+compose_cmd() {
+    if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    elif sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
+        sudo docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        if docker info >/dev/null 2>&1; then
+            docker-compose "$@"
+        else
+            sudo docker-compose "$@"
+        fi
+    else
+        echo "❌ Docker Compose is not available. Install docker-compose-plugin or docker-compose."
+        exit 1
+    fi
+}
+
 # --------------------------------------
 # Input
 # --------------------------------------
@@ -66,8 +94,13 @@ if [[ -z "$1" ]]; then
 fi
 
 STACK_NAME="$1"
-DELETE_DB_FLAG="$2"
-DELETE_FILESTORE="no"
+DELETE_DB_FLAG="${2:-}"
+
+if [[ -n "$DELETE_DB_FLAG" && "$DELETE_DB_FLAG" != "--with-db" ]]; then
+    echo "❌ Invalid option: $DELETE_DB_FLAG"
+    echo "Usage: $0 <stack_directory_name> [--with-db]"
+    exit 1
+fi
 
 # --------------------------------------
 # Paths
@@ -117,88 +150,55 @@ echo "   - Caddy site config"
 
 if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
     echo "   - Database (INCLUDING TEMPLATE)"
-    echo "   - Filestore volumes (ASKED SEPARATELY)"
+    echo "   - Filestore volume"
 else
-    echo "   - Filestore volumes (NOT deleted)"
-fi
-
-echo ""
-read -p "Are you sure? (yes/no): " CONFIRM
-
-if [[ "$CONFIRM" != "yes" ]]; then
-    echo "❌ Aborted"
-    exit 0
-fi
-
-if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
-    read -p "Also delete filestore volumes? (yes/no): " FILESTORE_CONFIRM
-
-    case "$FILESTORE_CONFIRM" in
-        yes|y|Y|YES)
-            DELETE_FILESTORE="yes"
-            ;;
-        no|n|N|NO)
-            DELETE_FILESTORE="no"
-            ;;
-        *)
-            echo "❌ Invalid input. Please use yes or no."
-            exit 1
-            ;;
-    esac
+    echo "   - Database (preserved)"
+    echo "   - Filestore volume (preserved)"
 fi
 
 # --------------------------------------
 # Stop and remove containers
 # --------------------------------------
 echo "🛑 Removing containers..."
-docker compose down --remove-orphans
+compose_cmd down --remove-orphans
 
 # --------------------------------------
 # Delete database (INCLUDING template)
 # --------------------------------------
 if [[ "$DELETE_DB_FLAG" == "--with-db" ]]; then
 
-    # --------------------------------------
-    # Optional filestore deletion (only when --with-db is used)
-    # --------------------------------------
-    if [[ "$DELETE_FILESTORE" == "yes" ]]; then
-        echo "🧹 Removing selected stack filestore volume only..."
+    # Compose project-name defaults to directory name, so this resolves to
+    # the exact filestore volume for the selected stack.
+    FILESTORE_VOLUME="${STACK_NAME}_odoo_db_data"
 
-        # Compose project-name defaults to directory name, so this resolves to
-        # the exact filestore volume for the selected stack.
-        FILESTORE_VOLUME="${STACK_NAME}_odoo_db_data"
-
-        if docker volume inspect "$FILESTORE_VOLUME" >/dev/null 2>&1; then
-            echo "📦 Removing filestore volume: $FILESTORE_VOLUME"
-            docker volume rm "$FILESTORE_VOLUME"
-            echo "✅ Filestore volume removed"
-        else
-            echo "ℹ️ Filestore volume not found: $FILESTORE_VOLUME"
-        fi
+    echo "🧹 Removing filestore volume (with --with-db): $FILESTORE_VOLUME"
+    if docker_cmd volume inspect "$FILESTORE_VOLUME" >/dev/null 2>&1; then
+        docker_cmd volume rm "$FILESTORE_VOLUME"
+        echo "✅ Filestore volume removed"
     else
-        echo "⏭️ Keeping filestore volumes (user chose not to delete)."
+        echo "ℹ️ Filestore volume not found: $FILESTORE_VOLUME"
     fi
 
     echo "🗑️ Removing database: $db_name"
 
     POSTGRES_CONTAINER="postgres-container"
 
-    docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+        docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
     SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
     WHERE datname = '$db_name'
       AND pid <> pg_backend_pid();
     " >/dev/null 2>&1 || true
 
-    docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+        docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
     ALTER DATABASE \"$db_name\" WITH is_template = false;
     " >/dev/null 2>&1 || true
 
-    docker exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name" >/dev/null 2>&1 || true
+        docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name" >/dev/null 2>&1 || true
 
     echo "✅ Database removed"
 else
-    echo "⏭️ --with-db not provided. Skipping database and filestore deletion."
+    echo "⏭️ --with-db not provided. Keeping database and filestore volume."
 fi
 
 # --------------------------------------
@@ -219,6 +219,22 @@ echo "🧹 Removing Caddy site..."
 sudo rm -f "$CADDY_SITES_DIR/${container_name}.caddy" 2>/dev/null || true
 
 echo "✅ Caddy site removed"
+
+# --------------------------------------
+# Remove port from .used_ports
+# --------------------------------------
+echo "🧹 Removing port from .used_ports..."
+
+USED_PORTS_FILE="$PROJECT_ROOT/.used_ports"
+STACK_PORT=$(grep -oP '8[0-9]{3}' "$COMPOSE_FILE" | head -n 1)
+
+if [[ -n "$STACK_PORT" ]] && [[ -f "$USED_PORTS_FILE" ]]; then
+    sed -i "/^${STACK_PORT}$/d" "$USED_PORTS_FILE"
+    echo "✅ Port $STACK_PORT removed from .used_ports"
+else
+    echo "ℹ️ Port not found or .used_ports file not found"
+fi
+
 
 # --------------------------------------
 # Remove stack directory

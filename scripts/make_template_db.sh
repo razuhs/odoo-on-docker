@@ -123,6 +123,17 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
 # --------------------------------------
 # Input
 # --------------------------------------
@@ -181,7 +192,7 @@ echo "⏳ Waiting for DB to be fully initialized..."
 MAX_WAIT=300
 WAITED=0
 
-until docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$db_name" -c \
+until docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$db_name" -c \
 "SELECT 1 FROM ir_module_module LIMIT 1;" >/dev/null 2>&1; do
 
     sleep 5
@@ -198,14 +209,14 @@ echo "✅ DB is ready"
 # --------------------------------------
 # Check if already template
 # --------------------------------------
-template_exists=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
     "SELECT 1 FROM pg_database WHERE datname='$db_name' AND datistemplate=true")
 
 if [[ "$template_exists" == "1" ]]; then
     echo "⚠️ Template DB already exists: $db_name"
 
     # Optional validation
-    db_valid=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$db_name" -tAc \
+    db_valid=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$db_name" -tAc \
         "SELECT count(*) FROM ir_module_module")
 
     if [[ "$db_valid" -gt 0 ]]; then
@@ -224,7 +235,7 @@ fi
 # --------------------------------------
 echo "🔌 Terminating DB connections..."
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE datname = '$db_name'
@@ -236,7 +247,7 @@ WHERE datname = '$db_name'
 # --------------------------------------
 echo "📦 Marking DB as template..."
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 ALTER DATABASE \"$db_name\" WITH is_template = true;
 "
 
@@ -245,16 +256,16 @@ ALTER DATABASE \"$db_name\" WITH is_template = true;
 # --------------------------------------
 echo "🔒 Blocking connections..."
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 ALTER DATABASE \"$db_name\" CONNECTION LIMIT 0;
 "
 
 # --------------------------------------
 # Stop container safely
 # --------------------------------------
-if docker ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
+if docker_cmd ps --format '{{.Names}}' | grep -q "^${container_name}$"; then
     echo "🛑 Stopping container..."
-    docker stop "$container_name"
+    docker_cmd stop "$container_name"
 else
     echo "ℹ️ Container already stopped"
 fi

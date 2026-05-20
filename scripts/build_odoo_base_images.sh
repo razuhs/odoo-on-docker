@@ -16,9 +16,45 @@
 
 set -e
 
+DOCKER_USE_SUDO=false
+
+ensure_docker_access_mode() {
+    if docker info >/dev/null 2>&1; then
+        DOCKER_USE_SUDO=false
+        return
+    fi
+
+    if sudo -n docker info >/dev/null 2>&1; then
+        DOCKER_USE_SUDO=true
+        return
+    fi
+
+    echo "⚠️ Docker requires sudo for this user."
+    echo "🔐 Please authenticate once for Docker commands..."
+    sudo -v
+
+    if sudo -n docker info >/dev/null 2>&1; then
+        DOCKER_USE_SUDO=true
+        return
+    fi
+
+    echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+    exit 1
+}
+
+docker_cmd() {
+    if [[ "$DOCKER_USE_SUDO" == true ]]; then
+        sudo docker "$@"
+    else
+        docker "$@"
+    fi
+}
+
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 START_VERSION=16
 END_VERSION=19
+
+ensure_docker_access_mode
 
 echo ""
 echo "🔍 Checking for existing Odoo base images (odoo-custom:$START_VERSION–$END_VERSION)..."
@@ -26,7 +62,7 @@ echo "🔍 Checking for existing Odoo base images (odoo-custom:$START_VERSION–
 missing_images=()
 
 for ((version=START_VERSION; version<=END_VERSION; version++)); do
-    if ! docker images --format "{{.Repository}}:{{.Tag}}" | grep -q "^odoo-custom:$version$"; then
+    if ! docker_cmd images --format "{{.Repository}}:{{.Tag}}" | grep -q "^odoo-custom:$version$"; then
         missing_images+=("$version")
     fi
 done
@@ -46,7 +82,7 @@ echo "📥 Pulling base images..."
 
 for version in "${missing_images[@]}"; do
     echo "⬇️ Pulling odoo:$version"
-    docker pull odoo:"$version"
+    docker_cmd pull odoo:"$version"
 done
 
 # Step 2: Build only missing images
@@ -58,7 +94,7 @@ for version in "${missing_images[@]}"; do
     echo "🔨 Building odoo-custom:$version"
     echo "-----------------------------------"
 
-    docker build \
+    docker_cmd build \
         --build-arg ODOO_VERSION="$version" \
         -t odoo-custom:"$version" \
         -f "$PROJECT_ROOT/Dockerfile.base" \

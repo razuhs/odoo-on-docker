@@ -70,6 +70,26 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Function to gather user inputs
 # shellcheck disable=SC2120
+get_next_available_port() {
+    local port_file="$PROJECT_ROOT/.used_ports"
+    local start_port=8070
+    local port=$start_port
+
+    # Create port tracking file if it doesn't exist
+    if [[ ! -f "$port_file" ]]; then
+        touch "$port_file"
+    fi
+
+    # Find next available port
+    while grep -q "^$port$" "$port_file" 2>/dev/null; do
+        ((port++))
+    done
+
+    # Store the port
+    echo "$port" >> "$port_file"
+    echo "$port"
+}
+
 gather_inputs() {
 
   BASE_CONFIG_FILE="$PROJECT_ROOT/configs/.base_stack.conf"
@@ -148,6 +168,9 @@ gather_inputs() {
   odoo_conf_admin_pass="$ODOO_ADMIN_PASS"
   # shellcheck disable=SC2153
   demo_data="$DEMO_DATA"
+
+  # Get next available port for this stack
+  odoo_port=$(get_next_available_port)
 }
 
 create_directory_and_files() {
@@ -231,8 +254,11 @@ services:
       - ./${comp_name}_odoo${odoo_version}.conf:/etc/odoo/${comp_name}_odoo${odoo_version}.conf
       - odoo_db_data:/var/lib/odoo
       - ../logs/odoo-logs:/var/log/odoo
+    ports:
+      - "${odoo_port}:8069"
     command: >
       ${ODOO_COMMAND}
+    
     networks:
       - odoo-net
 

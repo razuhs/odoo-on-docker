@@ -60,6 +60,34 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
+compose_cmd() {
+    if docker info >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        docker compose "$@"
+    elif sudo docker info >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
+        sudo docker compose "$@"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        if docker info >/dev/null 2>&1; then
+            docker-compose "$@"
+        else
+            sudo docker-compose "$@"
+        fi
+    else
+        echo "❌ Docker Compose is not available. Install docker-compose-plugin or docker-compose."
+        exit 1
+    fi
+}
+
 # --------------------------------------
 # Config
 # --------------------------------------
@@ -155,20 +183,20 @@ if [[ "$TEMPLATE" == "False" ]]; then
     # --------------------------------------
     # Drop DB if exists
     # --------------------------------------
-    db_exists=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+    db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
         "SELECT 1 FROM pg_database WHERE datname='$db_name'")
 
     if [[ "$db_exists" == "1" ]]; then
         echo "⚠️ DB exists → dropping..."
 
-        docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+                docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
         SELECT pg_terminate_backend(pid)
         FROM pg_stat_activity
         WHERE datname = '$db_name'
           AND pid <> pg_backend_pid();
         "
 
-        docker exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name"
+                docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name"
 
         echo "🗑️ DB dropped"
     fi
@@ -178,7 +206,16 @@ if [[ "$TEMPLATE" == "False" ]]; then
     # --------------------------------------
     echo "🚀 Creating DB from template..."
 
-    docker exec -i "$POSTGRES_CONTAINER" createdb \
+    # Check if template DB exists
+    template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+        "SELECT 1 FROM pg_database WHERE datname='$template_db'")
+
+    if [[ "$template_exists" != "1" ]]; then
+        echo "❌ Template DB not found: $template_db"
+        exit 1
+    fi
+
+    docker_cmd exec -i "$POSTGRES_CONTAINER" createdb \
         -U "$DB_USER" \
         -T "$template_db" \
         "$db_name"
@@ -190,7 +227,7 @@ if [[ "$TEMPLATE" == "False" ]]; then
     echo "🚀 Creating target volume via docker compose..."
 
     cd "$STACK_DIR"
-    docker compose up -d
+    compose_cmd up -d
 
     # wait for volume creation
     sleep 2
@@ -200,13 +237,13 @@ if [[ "$TEMPLATE" == "False" ]]; then
     COMPOSE_FILE="$STACK_DIR/docker-compose.yml"
     container_name=$(grep -m1 "container_name:" "$COMPOSE_FILE" | awk '{print $2}')
 
-    ODOO_UID=$(docker exec "$container_name" id -u)
-    ODOO_GID=$(docker exec "$container_name" id -g)
+    ODOO_UID=$(docker_cmd exec "$container_name" id -u)
+    ODOO_GID=$(docker_cmd exec "$container_name" id -g)
 
     echo "🔍 Detected UID:GID = ${ODOO_UID}:${ODOO_GID}"
 
     # now safe to stop
-    docker compose stop
+    compose_cmd stop
 
     # --------------------------------------
     # FILESTORE COPY
@@ -216,12 +253,12 @@ if [[ "$TEMPLATE" == "False" ]]; then
     TARGET_VOLUME="${STACK_NAME}_odoo_db_data"
 
     # Validate volumes
-    docker volume inspect "$TEMPLATE_VOLUME" >/dev/null 2>&1 || {
+    docker_cmd volume inspect "$TEMPLATE_VOLUME" >/dev/null 2>&1 || {
         echo "❌ Template volume not found"
         exit 1
     }
 
-    docker volume inspect "$TARGET_VOLUME" >/dev/null 2>&1 || {
+    docker_cmd volume inspect "$TARGET_VOLUME" >/dev/null 2>&1 || {
         echo "❌ Target volume not found"
         exit 1
     }
@@ -230,7 +267,7 @@ if [[ "$TEMPLATE" == "False" ]]; then
     echo "📦 To:   $TARGET_VOLUME"
 
     # Copy filestore safely (auto-detect path + FIX PERMISSIONS)
-    docker run --rm \
+        docker_cmd run --rm \
       -v "$TEMPLATE_VOLUME":/source \
       -v "$TARGET_VOLUME":/dest \
       alpine sh -c "
@@ -285,38 +322,29 @@ fi
 echo "🚀 Starting stack: $STACK_NAME"
 cd "$STACK_DIR"
 
-if [[ -n "$(docker compose ps -q)" ]]; then
-    docker compose restart
+if [[ -n "$(compose_cmd ps -q)" ]]; then
+    compose_cmd restart
 else
-    docker compose up -d
+    compose_cmd up -d
 fi
 
 echo "✅ Stack started"
 
+
 # --------------------------------------
 # Restart Caddy proxy
 # --------------------------------------
-docker restart caddy-proxy
+docker_cmd restart caddy-proxy
 echo "✅ Caddy restarted"
+
+# Extract port from compose file
+PORT=$(grep -A5 "ports:" "$STACK_DIR/docker-compose.yml" | grep -oP '\d+:8069' | cut -d: -f1 | head -1)
+
 URL="https://${DEMO_COMPANY_NAME}.${DOMAIN}/web/login"
+HTTP_URL="http://${HOST_IP}:${PORT:-8069}"
 
-echo "🌐 Waiting for instance to be accessible..."
-echo "🔗 $URL"
-
-MAX_WAIT=180
-WAITED=0
-
-until curl -k -L -s "$URL" >/dev/null 2>&1; do
-    sleep 3
-    WAITED=$((WAITED+3))
-
-    if (( WAITED >= MAX_WAIT )); then
-        echo "❌ Timeout: Instance not accessible"
-        exit 1
-    fi
-
-    echo "⏳ Waiting... (${WAITED}s)"
-done
-
-echo "✅ Instance is accessible!"
-echo "🌐 $URL"
+echo "🌐 Stack initialization in progress. Please allow a few minutes for the services to be fully ready."
+echo "🔗 Access the application at: $URL"
+echo "🔗 Or locally at: $HTTP_URL"
+echo ""
+echo ""

@@ -288,6 +288,8 @@ services:
       - ../logs/odoo-logs:/var/log/odoo
     command: >
       odoo -d ${comp_name}-odoo${odoo_version}-db -i ${ODOO_MODULES} --config=/etc/odoo/${comp_name}_odoo${odoo_version}.conf
+    ports:
+      - "8069:8069"
     networks:
       - odoo-net
 

@@ -48,6 +48,17 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
 POSTGRES_CONTAINER="postgres-container"
 EXPIRATION_DATE="2027-12-31"
 
@@ -62,7 +73,7 @@ source "$BASE_CONFIG"
 echo "🔎 Fetching databases to update..."
 
 mapfile -t DATABASES < <(
-    docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -tA -c "
+    docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -tA -c "
 SELECT datname
 FROM pg_database
 WHERE datallowconn
@@ -81,7 +92,7 @@ echo "Databases: ${DATABASES[*]}"
 for database_name in "${DATABASES[@]}"; do
     echo "Updating ${database_name}..."
 
-    table_exists=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$database_name" -tA -c "
+    table_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d "$database_name" -tA -c "
 SELECT 1
 FROM information_schema.tables
 WHERE table_schema = 'public'
@@ -93,7 +104,7 @@ WHERE table_schema = 'public'
         continue
     fi
 
-    docker exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$database_name" <<SQL
+    docker_cmd exec -i "$POSTGRES_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$database_name" <<SQL
 INSERT INTO ir_config_parameter (key, value, create_uid, create_date, write_uid, write_date)
 VALUES ('database.expiration_date', '${EXPIRATION_DATE}', 1, NOW(), 1, NOW())
 ON CONFLICT (key)

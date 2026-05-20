@@ -1,91 +1,52 @@
-## 🚀 start_base_stack.sh
+# Odoo on Docker Setup Instructions
 
-### 📌 Overview
-start_base_stack.sh is the main entry point for initializing the Odoo environment.  
-It prepares Docker, builds base images, generates configuration, and starts core services.
+1. Navigate to scripts directory and run the prepare docker script:
+   ```bash
+   cd scripts
+   ./prepare_docker.sh
+   ```
 
-This script must be executed before creating any template or test stacks.
+2. Build odoo base images:
+   ```bash
+   ./build_odoo_base_images.sh
+   ```
 
----
+3. Start the base stack (make sure to edit `configs/.base_stack.conf` first):
+   ```bash
+   ./start_base_stack.sh
+   ```
 
-### 🎯 Purpose
-- Setup a clean and consistent base environment  
-- Build reusable Odoo Docker images  
-- Create base stack configuration  
-- Start core services (Odoo, PostgreSQL, Caddy, pgAdmin)  
+4. Start the template stack:
+   ```bash
+   ./start_template_stack.sh
+   ```
 
-👉 The base stack is the foundation for all template and test instances
+5. Wait for Odoo to initialize databases for 16-19 CE & EE with default module installation (~4 hours).
 
----
+6. Create template stack:
+   ```bash
+   ./make_template_stack.sh
+   ```
+   (This will take 30 minutes max)
 
-### ⚙️ Workflow
+7. Start test stack:
+   ```bash
+   ./start_test_stack.sh
+   ```
+   This will create and run 16 test instances for every 16 templates created earlier.
 
-1. Load Configuration  
-   - Reads configs/.base_stack.conf  
-   - Uses COMPANY_NAME and ODOO_VERSION  
+8. Once tested successfully, remove test stacks:
+   ```bash
+   ./remove_test_stacks.sh
+   ```
 
-2. Prepare Docker Environment  
-   - Calls: scripts/prepare_docker.sh  
-   - Installs dependencies and ensures Docker is ready  
+9. Remove template stacks:
+   ```bash
+   ./remove_template_stacks.sh
+   ```
 
-3. Build Base Images  
-   - Calls: scripts/build_odoo_base_images.sh  
-   - Builds:
-     - odoo:<version>
-     - odoo-custom:<version>  
-
-4. Setup Base Stack  
-   - Calls: scripts/setup_base_stack.sh  
-   - Creates base_stack directory with:
-     - docker-compose.yml  
-     - Odoo config (.conf)  
-     - Dockerfile  
-     - requirements.txt  
-     - Caddy config  
-     - pgAdmin files  
-
-   - If base_stack exists:
-     - user chooses overwrite or reuse  
-
-5. Verify Required Files  
-   Ensures all required files exist before starting:
-   - docker-compose.yml  
-   - Caddyfile  
-   - Odoo config  
-   - Dockerfile  
-   - requirements.txt  
-   - pgAdmin configs  
-
-6. Start Base Stack  
-   - Runs docker compose up -d or restart  
-   - Starts:
-     - Odoo  
-     - PostgreSQL  
-     - Caddy  
-     - pgAdmin  
-
----
-
-### 🌐 Output
-After successful execution:
-
-https://${DOMAIN}/odoo
-
----
-
-### 🧠 Architecture Concept
-Base Stack → Core Infrastructure  
-Template Stacks → Prebuilt reusable instances  
-Test Stacks → Runtime instances  
-
----
-
-### ⚠️ Notes
-- configs/.base_stack.conf must exist  
-- May overwrite base_stack directory  
-- Docker images are built once and reused  
-
----
-
-### ✅ Summary
-Initialize → Build → Configure → Verify → Run
+10. Remove config files:
+    ```bash
+    ./remove_configs.sh
+    ```
+    This deletes the config files generated for creating templates and test stacks.

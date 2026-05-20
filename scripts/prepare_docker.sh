@@ -53,6 +53,77 @@ set -e
 # --------------------------------------
 KEEP_ODOO_IMAGES=false
 
+DOCKER_ACCESS_MODE="direct"
+
+user_in_docker_group() {
+    getent group docker | grep -Eq "(^|:)[^:]*:[^:]*:.*(^|,)$USER(,|$)"
+}
+
+ensure_docker_access_mode() {
+    if docker info >/dev/null 2>&1; then
+        DOCKER_ACCESS_MODE="direct"
+        return
+    fi
+
+    if ! user_in_docker_group; then
+        echo "👤 User '$USER' is not in docker group. Adding automatically..."
+        sudo usermod -aG docker "$USER"
+        echo "✅ Added '$USER' to docker group."
+        echo "ℹ️ Trying immediate docker-group access for this run..."
+    else
+        echo "ℹ️ User '$USER' is already in docker group, but current shell has old group session."
+    fi
+
+    if sg docker -c 'docker info >/dev/null 2>&1'; then
+        DOCKER_ACCESS_MODE="sg"
+        return
+    fi
+
+    if sudo -n docker info >/dev/null 2>&1; then
+        DOCKER_ACCESS_MODE="sudo"
+        return
+    fi
+
+    echo "ℹ️ Docker will use sudo for this run."
+    echo "🔐 Please authenticate once for Docker commands..."
+    sudo -v
+
+    if sudo -n docker info >/dev/null 2>&1; then
+        DOCKER_ACCESS_MODE="sudo"
+        return
+    fi
+
+    echo "❌ Docker daemon is running but cannot be accessed by current user or sudo."
+    exit 1
+}
+
+docker_via_sg() {
+    local cmd="docker"
+    local arg
+    for arg in "$@"; do
+        cmd+=" $(printf '%q' "$arg")"
+    done
+    sg docker -c "$cmd"
+}
+
+docker_fallback_cmd() {
+    case "$DOCKER_ACCESS_MODE" in
+        direct)
+            docker "$@"
+            ;;
+        sg)
+            docker_via_sg "$@"
+            ;;
+        sudo)
+            sudo docker "$@"
+            ;;
+        *)
+            echo "❌ Invalid Docker access mode: $DOCKER_ACCESS_MODE"
+            exit 1
+            ;;
+    esac
+}
+
 # --------------------------------------
 # Ensure dependencies
 # --------------------------------------
@@ -80,12 +151,37 @@ ensure_dependencies() {
     install_if_missing inotifywait inotify-tools
     install_if_missing docker docker.io
 
-    if ! docker compose version >/dev/null 2>&1; then
-        echo "❌ Docker Compose plugin missing. Installing..."
-        sudo apt-get install -y docker-compose-plugin
-        echo "✅ Docker Compose plugin installed."
-    else
+    if docker compose version >/dev/null 2>&1; then
         echo "✅ Docker Compose plugin is already installed."
+    elif command -v docker-compose >/dev/null 2>&1; then
+        echo "✅ docker-compose is already installed (legacy binary)."
+    else
+        echo "❌ Docker Compose is missing. Trying available package names..."
+
+        compose_installed=false
+        for compose_pkg in docker-compose-plugin docker-compose-v2 docker-compose; do
+            echo "📦 Trying to install: $compose_pkg"
+            if sudo apt-get install -y "$compose_pkg" >/dev/null 2>&1; then
+                echo "✅ Installed $compose_pkg"
+                compose_installed=true
+                break
+            fi
+        done
+
+        if [[ "$compose_installed" != true ]]; then
+            echo "❌ Could not install any Compose package (docker-compose-plugin, docker-compose-v2, docker-compose)."
+            echo "   Please add Docker's official APT repository or install Compose manually."
+            exit 1
+        fi
+
+        if docker compose version >/dev/null 2>&1; then
+            echo "✅ Docker Compose plugin available via 'docker compose'."
+        elif command -v docker-compose >/dev/null 2>&1; then
+            echo "✅ Compose available via 'docker-compose'."
+        else
+            echo "❌ Compose install completed but command not available in PATH."
+            exit 1
+        fi
     fi
 
     if ! systemctl is-active --quiet docker; then
@@ -95,7 +191,21 @@ ensure_dependencies() {
 
     echo "✅ Docker daemon running."
 
-    DOCKER_ROOT=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null)
+    ensure_docker_access_mode
+
+    case "$DOCKER_ACCESS_MODE" in
+        direct)
+            echo "ℹ️ Using direct docker access."
+            ;;
+        sg)
+            echo "ℹ️ Using docker group context (sg docker) for this run."
+            ;;
+        sudo)
+            echo "ℹ️ Using sudo docker for this run."
+            ;;
+    esac
+
+    DOCKER_ROOT=$(docker_fallback_cmd info --format '{{.DockerRootDir}}' 2>/dev/null || true)
 
     if [[ -z "$DOCKER_ROOT" ]]; then
         echo "❌ Unable to determine Docker root directory."
@@ -117,7 +227,7 @@ ensure_dependencies() {
     sleep 3
 
     echo "📦 Testing Docker pull..."
-    if docker pull hello-world >/dev/null 2>&1; then
+    if docker_fallback_cmd pull hello-world >/dev/null 2>&1; then
         echo "✅ Docker working correctly."
     else
         echo "❌ Docker pull failed."
@@ -141,7 +251,7 @@ handle_odoo_images() {
     for repo in "${repos[@]}"; do
         for v in "${versions[@]}"; do
             img="${repo}:${v}"
-            if docker image inspect "$img" >/dev/null 2>&1; then
+            if docker_fallback_cmd image inspect "$img" >/dev/null 2>&1; then
                 echo "✔ Found: $img"
                 found+=("$img")
             fi
@@ -176,7 +286,6 @@ handle_odoo_images() {
 # Reset Docker
 # --------------------------------------
 reset_docker_environment() {
-
     read -p "🔥 Do you want HARD Docker reset? (yes/no): " confirm
 
     if [[ "$confirm" != "yes" ]]; then
@@ -203,38 +312,38 @@ reset_docker_environment() {
     handle_odoo_images
 
     echo "🛑 Stopping containers..."
-    docker stop $(docker ps -aq) 2>/dev/null || true
+    docker_fallback_cmd stop $(docker_fallback_cmd ps -aq) 2>/dev/null || true
 
     echo "🧹 Removing containers..."
-    docker rm $(docker ps -aq) 2>/dev/null || true
+    docker_fallback_cmd rm $(docker_fallback_cmd ps -aq) 2>/dev/null || true
 
     echo "🗑 Removing images..."
 
     if [[ "$KEEP_ODOO_IMAGES" == true ]]; then
         echo "⚠️ Preserving Odoo images..."
 
-        for img in $(docker images -aq); do
-            tags=$(docker inspect --format='{{.RepoTags}}' "$img" 2>/dev/null || echo "")
+        for img in $(docker_fallback_cmd images -aq); do
+            tags=$(docker_fallback_cmd inspect --format='{{.RepoTags}}' "$img" 2>/dev/null || echo "")
 
             if echo "$tags" | grep -qE 'odoo:(16|17|18|19)|odoo-custom:(16|17|18|19)'; then
                 echo "⏭ Skipping $tags"
             else
-                docker rmi -f "$img" 2>/dev/null || true
+                docker_fallback_cmd rmi -f "$img" 2>/dev/null || true
             fi
         done
     else
-        docker rmi -f $(docker images -aq) 2>/dev/null || true
+        docker_fallback_cmd rmi -f $(docker_fallback_cmd images -aq) 2>/dev/null || true
     fi
 
     echo "📦 Removing volumes..."
-    docker volume rm $(docker volume ls -q) 2>/dev/null || true
-    docker volume prune -f
+    docker_fallback_cmd volume rm $(docker_fallback_cmd volume ls -q) 2>/dev/null || true
+    docker_fallback_cmd volume prune -f
 
     echo "🌐 Cleaning networks..."
-    docker network prune -f
+    docker_fallback_cmd network prune -f
 
     echo "🧼 System prune..."
-    docker system prune -a --volumes -f
+    docker_fallback_cmd system prune -a --volumes -f
 
     echo "✅ Docker reset complete."
 }

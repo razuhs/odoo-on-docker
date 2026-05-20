@@ -1,6 +1,17 @@
 #!/bin/bash
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
 # ==========================================================
 # 📘 DATABASE MANAGEMENT (ODOO DOCKER SETUP)
 # ==========================================================
@@ -103,7 +114,7 @@ fi
 # --------------------------------------
 # Check if DB exists
 # --------------------------------------
-db_exists=$(docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
 "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'")
 
 if [[ "$db_exists" != "1" ]]; then
@@ -116,7 +127,7 @@ fi
 # --------------------------------------
 echo "🔌 Terminating active connections..."
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE datname = '$DB_NAME'
@@ -128,7 +139,7 @@ WHERE datname = '$DB_NAME'
 # --------------------------------------
 echo "🔓 Removing template flag (if set)..."
 
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 ALTER DATABASE \"$DB_NAME\" WITH is_template = false;
 " >/dev/null 2>&1 || true
 
@@ -137,6 +148,6 @@ ALTER DATABASE \"$DB_NAME\" WITH is_template = false;
 # --------------------------------------
 echo "🗑️ Dropping database..."
 
-docker exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$DB_NAME"
+docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$DB_NAME"
 
 echo "✅ Database deleted: $DB_NAME"

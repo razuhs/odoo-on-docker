@@ -82,6 +82,17 @@
 # ==========================================================
 set -e
 
+docker_cmd() {
+    if docker info >/dev/null 2>&1; then
+        docker "$@"
+    elif sudo docker info >/dev/null 2>&1; then
+        sudo docker "$@"
+    else
+        echo "❌ Docker is not accessible. Ensure daemon is running and user has permissions."
+        exit 1
+    fi
+}
+
 POSTGRES_CONTAINER="postgres-container"
 
 # --------------------------------------
@@ -101,7 +112,7 @@ echo ""
 # --------------------------------------
 # Query databases
 # --------------------------------------
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
 SELECT
     datname AS database,
     CASE
