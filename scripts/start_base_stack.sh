@@ -279,4 +279,5 @@ fi
 echo ""
 echo "✅ Base stack is up!"
 echo "https://${DOMAIN}/odoo"
+echo "Alternatively, access pgAdmin at http://${HOST_IP}:8069"
 

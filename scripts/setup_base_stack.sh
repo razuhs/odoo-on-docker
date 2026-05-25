@@ -212,8 +212,10 @@ create_directory_and_files() {
     sudo chmod -R 775 "$PROJECT_ROOT/logs/odoo-logs"
 
     # Set permissions for Caddy logs (host user UID 1000)
+    # Keep setgid on directory so new files inherit group ownership.
     sudo chown -R 1000:1000 "$PROJECT_ROOT/logs/caddy-logs"
     sudo chmod -R 775 "$PROJECT_ROOT/logs/caddy-logs"
+    sudo find "$PROJECT_ROOT/logs/caddy-logs" -type d -exec chmod 2775 {} \;
 
     # Set permissions for caddy-sites (host user UID 1000)
     sudo chown -R 1000:1000 "$PROJECT_ROOT/caddy-sites"
@@ -443,7 +445,9 @@ cat <<EOF > "$PROJECT_ROOT/caddy-sites/base_stack_${comp_name}_odoo${odoo_versio
 ${domain} {
     reverse_proxy ${comp_name}_odoo${odoo_version}:8069
     log {
-        output file /caddy-logs/${comp_name}_odoo${odoo_version}_access.log
+        output file /caddy-logs/${comp_name}_odoo${odoo_version}_access.log {
+            mode 0644
+        }
     }
 }
 EOF

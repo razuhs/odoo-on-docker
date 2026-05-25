@@ -197,6 +197,14 @@ create_directory_and_files() {
     sudo chown -R 1000:1000 "$STACK_DIR"
     sudo chmod -R 775 "$STACK_DIR"
 
+    # Ensure shared log directories exist with predictable permissions.
+    mkdir -p "$PROJECT_ROOT/logs/odoo-logs" "$PROJECT_ROOT/logs/caddy-logs"
+    sudo chown -R 101:101 "$PROJECT_ROOT/logs/odoo-logs"
+    sudo chmod -R 775 "$PROJECT_ROOT/logs/odoo-logs"
+    sudo chown -R 1000:1000 "$PROJECT_ROOT/logs/caddy-logs"
+    sudo chmod -R 775 "$PROJECT_ROOT/logs/caddy-logs"
+    sudo find "$PROJECT_ROOT/logs/caddy-logs" -type d -exec chmod 2775 {} \;
+
     touch "$STACK_DIR/${comp_name}_odoo${odoo_version}.conf"
     touch "$STACK_DIR/${comp_name}_odoo${odoo_version}.dockerfile"
     touch "$STACK_DIR/docker-compose.yml"
@@ -334,7 +342,9 @@ cat <<EOF > "$PROJECT_ROOT/caddy-sites/${comp_name}_odoo${odoo_version}.caddy"
 ${domain} {
     reverse_proxy ${comp_name}_odoo${odoo_version}:8069
     log {
-        output file /caddy-logs/${comp_name}_odoo${odoo_version}_access.log
+        output file /caddy-logs/${comp_name}_odoo${odoo_version}_access.log {
+            mode 0644
+        }
     }
 }
 EOF
