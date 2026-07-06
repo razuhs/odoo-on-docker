@@ -1,0 +1,9 @@
+# Keep base image build context minimal and avoid host runtime artifacts
+logs/
+.git/
+base_stack/
+caddy-sites/
+configs/
+custom-addons/
+scripts/
+*.log

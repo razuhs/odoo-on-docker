@@ -101,6 +101,47 @@ source "$BASE_CONFIG"
 
 [[ -n "$DB_USER" ]] || { echo "❌ DB_USER not found"; exit 1; }
 
+pick_pg_admin_user() {
+    local candidate attempt
+    local max_attempts=10
+    local -a candidates=()
+    local tried
+
+    [[ -n "${DB_ADMIN_USER:-}" ]] && candidates+=("$DB_ADMIN_USER")
+    candidates+=("postgres" "$DB_USER")
+
+    for ((attempt=1; attempt<=max_attempts; attempt++)); do
+        tried=""
+        for candidate in "${candidates[@]}"; do
+            [[ -z "$candidate" ]] && continue
+            [[ " $tried " == *" $candidate "* ]] && continue
+            tried="$tried $candidate"
+
+            if docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$candidate" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+                PG_ADMIN_USER="$candidate"
+                return 0
+            fi
+        done
+
+        if (( attempt < max_attempts )); then
+            echo "⏳ Waiting for PostgreSQL admin connection... (attempt $attempt/$max_attempts)"
+            sleep 2
+        fi
+    done
+
+    return 1
+}
+
+PG_ADMIN_USER=""
+if ! pick_pg_admin_user; then
+    echo "❌ Could not connect to PostgreSQL with any admin candidate user."
+    echo "   Tried: DB_ADMIN_USER (if set), postgres, DB_USER=$DB_USER"
+    echo "   You can set DB_ADMIN_USER in configs/.base_stack.conf if needed."
+    exit 1
+fi
+
+echo "🔐 Using DB admin user: $PG_ADMIN_USER"
+
 echo "🗄️ Target database: $DB_NAME"
 echo ""
 
@@ -114,7 +155,7 @@ fi
 # --------------------------------------
 # Check if DB exists
 # --------------------------------------
-db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -tAc \
 "SELECT 1 FROM pg_database WHERE datname='$DB_NAME'")
 
 if [[ "$db_exists" != "1" ]]; then
@@ -127,7 +168,7 @@ fi
 # --------------------------------------
 echo "🔌 Terminating active connections..."
 
-docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -c "
 SELECT pg_terminate_backend(pid)
 FROM pg_stat_activity
 WHERE datname = '$DB_NAME'
@@ -139,7 +180,7 @@ WHERE datname = '$DB_NAME'
 # --------------------------------------
 echo "🔓 Removing template flag (if set)..."
 
-docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -c "
 ALTER DATABASE \"$DB_NAME\" WITH is_template = false;
 " >/dev/null 2>&1 || true
 
@@ -148,6 +189,6 @@ ALTER DATABASE \"$DB_NAME\" WITH is_template = false;
 # --------------------------------------
 echo "🗑️ Dropping database..."
 
-docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$DB_NAME"
+docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$PG_ADMIN_USER" "$DB_NAME"
 
 echo "✅ Database deleted: $DB_NAME"

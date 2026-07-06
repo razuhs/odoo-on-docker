@@ -165,6 +165,9 @@ gather_inputs() {
   # shellcheck disable=SC2153
   db_pass="$DB_PASS"
 
+  db_maxconn="${DB_MAXCONN:-8}"
+  odoo_max_cron_threads="${ODOO_MAX_CRON_THREADS:-1}"
+
   odoo_conf_admin_pass="$ODOO_ADMIN_PASS"
   # shellcheck disable=SC2153
   demo_data="$DEMO_DATA"
@@ -296,9 +299,12 @@ db_user = ${db_user}
 db_password = ${db_pass}
 db_host = db
 db_port = 5432
+workers = 0
+db_maxconn = ${db_maxconn}
 addons_path = ${addons_path}
 db_filter = ^${comp_name}-odoo${odoo_version}-db$
 proxy_mode = True
+max_cron_threads = ${odoo_max_cron_threads}
 logfile = /var/log/odoo/${comp_name}_odoo${odoo_version}.log
 without_demo = ${demo_data}
 EOF

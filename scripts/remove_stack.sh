@@ -109,6 +109,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STACK_DIR="$PROJECT_ROOT/$STACK_NAME"
 COMPOSE_FILE="$STACK_DIR/docker-compose.yml"
 BASE_CONFIG="$PROJECT_ROOT/configs/.base_stack.conf"
+STACK_CONFIG_FILE="$PROJECT_ROOT/configs/.${STACK_NAME}.conf"
 
 ODOO_LOG_DIR="$PROJECT_ROOT/logs/odoo-logs"
 CADDY_LOG_DIR="$PROJECT_ROOT/logs/caddy-logs"
@@ -219,6 +220,13 @@ echo "🧹 Removing Caddy site..."
 sudo rm -f "$CADDY_SITES_DIR/${container_name}.caddy" 2>/dev/null || true
 
 echo "✅ Caddy site removed"
+
+# --------------------------------------
+# Remove stack config
+# --------------------------------------
+echo "🧹 Removing stack config..."
+sudo rm -f "$STACK_CONFIG_FILE" 2>/dev/null || true
+echo "✅ Stack config removed"
 
 # --------------------------------------
 # Remove port from .used_ports

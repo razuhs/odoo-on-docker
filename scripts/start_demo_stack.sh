@@ -164,6 +164,47 @@ if [[ "$TEMPLATE" == "False" ]]; then
 
     POSTGRES_CONTAINER="postgres-container"
 
+    pick_pg_admin_user() {
+        local candidate attempt
+        local max_attempts=10
+        local -a candidates=()
+        local tried
+
+        [[ -n "${DB_ADMIN_USER:-}" ]] && candidates+=("$DB_ADMIN_USER")
+        candidates+=("postgres" "$DB_USER")
+
+        for ((attempt=1; attempt<=max_attempts; attempt++)); do
+            tried=""
+            for candidate in "${candidates[@]}"; do
+                [[ -z "$candidate" ]] && continue
+                [[ " $tried " == *" $candidate "* ]] && continue
+                tried="$tried $candidate"
+
+                if docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$candidate" -d postgres -tAc "SELECT 1" >/dev/null 2>&1; then
+                    PG_ADMIN_USER="$candidate"
+                    return 0
+                fi
+            done
+
+            if (( attempt < max_attempts )); then
+                echo "⏳ Waiting for PostgreSQL admin connection... (attempt $attempt/$max_attempts)"
+                sleep 2
+            fi
+        done
+
+        return 1
+    }
+
+    PG_ADMIN_USER=""
+    if ! pick_pg_admin_user; then
+        echo "❌ Could not connect to PostgreSQL with any admin candidate user."
+        echo "   Tried: DB_ADMIN_USER (if set), postgres, DB_USER=$DB_USER"
+        echo "   You can set DB_ADMIN_USER in configs/.base_stack.conf if needed."
+        exit 1
+    fi
+
+    echo "🔐 Using DB admin user: $PG_ADMIN_USER"
+
     # --------------------------------------
     # Suffix mapping
     # --------------------------------------
@@ -183,20 +224,20 @@ if [[ "$TEMPLATE" == "False" ]]; then
     # --------------------------------------
     # Drop DB if exists
     # --------------------------------------
-    db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+    db_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -tAc \
         "SELECT 1 FROM pg_database WHERE datname='$db_name'")
 
     if [[ "$db_exists" == "1" ]]; then
         echo "⚠️ DB exists → dropping..."
 
-                docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -c "
+                                                                docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -c "
         SELECT pg_terminate_backend(pid)
         FROM pg_stat_activity
         WHERE datname = '$db_name'
           AND pid <> pg_backend_pid();
         "
 
-                docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$DB_USER" "$db_name"
+                                                                docker_cmd exec -i "$POSTGRES_CONTAINER" dropdb -U "$PG_ADMIN_USER" "$db_name"
 
         echo "🗑️ DB dropped"
     fi
@@ -207,7 +248,7 @@ if [[ "$TEMPLATE" == "False" ]]; then
     echo "🚀 Creating DB from template..."
 
     # Check if template DB exists
-    template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+    template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$PG_ADMIN_USER" -d postgres -tAc \
         "SELECT 1 FROM pg_database WHERE datname='$template_db'")
 
     if [[ "$template_exists" != "1" ]]; then
@@ -216,7 +257,8 @@ if [[ "$TEMPLATE" == "False" ]]; then
     fi
 
     docker_cmd exec -i "$POSTGRES_CONTAINER" createdb \
-        -U "$DB_USER" \
+        -U "$PG_ADMIN_USER" \
+        -O "$DB_USER" \
         -T "$template_db" \
         "$db_name"
 
@@ -334,8 +376,17 @@ echo "✅ Stack started"
 # --------------------------------------
 # Restart Caddy proxy
 # --------------------------------------
-docker_cmd restart caddy-proxy
-echo "✅ Caddy restarted"
+if [[ "${SKIP_CADDY_RESTART:-false}" == "true" ]]; then
+    echo "⏭️ Skipping Caddy restart (SKIP_CADDY_RESTART=true)"
+else
+    docker_cmd restart caddy-proxy
+    echo "✅ Caddy restarted"
+fi
+
+echo "🌐 Waiting for instance to be accessible..."
+
+START_TS=$(date +%s)
+NEXT_CHECK_TS=$START_TS
 
 # Extract port from compose file
 PORT=$(grep -A5 "ports:" "$STACK_DIR/docker-compose.yml" | grep -oP '\d+:8069' | cut -d: -f1 | head -1)
@@ -343,8 +394,39 @@ PORT=$(grep -A5 "ports:" "$STACK_DIR/docker-compose.yml" | grep -oP '\d+:8069' |
 URL="https://${DEMO_COMPANY_NAME}.${DOMAIN}/web/login"
 HTTP_URL="http://${HOST_IP}:${PORT:-8069}"
 
-echo "🌐 Stack initialization in progress. Please allow a few minutes for the services to be fully ready."
-echo "🔗 Access the application at: $URL"
-echo "🔗 Or locally at: $HTTP_URL"
+is_odoo_ready() {
+    local target_url="$1"
+    local page
+
+    page=$(curl -k -L -s --connect-timeout 2 --max-time 4 "$target_url" 2>/dev/null || true)
+    [[ -n "$page" ]] || return 1
+
+    # Consider ready only when login form fields are present.
+    grep -qiE 'name=["'"'"']login["'"'"']' <<< "$page" && \
+    grep -qiE 'name=["'"'"']password["'"'"']' <<< "$page"
+}
+
+while true; do
+    NOW_TS=$(date +%s)
+    WAITED=$((NOW_TS-START_TS))
+
+    if (( NOW_TS >= NEXT_CHECK_TS )); then
+        if is_odoo_ready "$URL" || is_odoo_ready "$HTTP_URL"; then
+            break
+        fi
+        NEXT_CHECK_TS=$((NOW_TS+3))
+    fi
+
+    printf "\r⏳ Waiting... (%ss)" "$WAITED"
+    sleep 1
+done
+
+echo
+
+echo "✅ Instance is ready at: $URL"
+echo "   (also accessible via $HTTP_URL)"
+echo ""
+echo ""
+echo "🎉 Odoo Stack setup complete!"
 echo ""
 echo ""

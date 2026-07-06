@@ -245,13 +245,29 @@ create_directory_and_files() {
     echo "✅ Docker-related files and directories created successfully."
 }
 
+# write on PostgreSQL pgvector Dockerfile
+write_pgvector_dockerfile() {
+echo "Writing base_stack/pgvector.dockerfile..."
+cat <<EOF > "$PROJECT_ROOT/base_stack/pgvector.dockerfile"
+FROM postgres:15
+
+RUN apt-get update \\
+ && apt-get install -y build-essential git postgresql-server-dev-15 \\
+ && git clone https://github.com/pgvector/pgvector.git \\
+ && cd pgvector \\
+ && make \\
+ && make install
+EOF
+echo "✅ base_stack/pgvector.dockerfile written successfully."
+}
+
 # write on docker-compose.yml file
 write_docker_compose() {
 echo "Writing docker-compose.yml..."
 cat <<EOF > "$PROJECT_ROOT/base_stack/docker-compose.yml"
 services:
   db:
-    image: postgres:15
+    image: ${comp_name}_postgres15_pgvector:latest
     container_name: postgres-container
     restart: unless-stopped
     environment:
@@ -261,6 +277,9 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - odoo-net
+    build:
+      context: .
+      dockerfile: pgvector.dockerfile
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${db_user}"]
       interval: 10s
@@ -473,6 +492,7 @@ create_custom_addons_directories
 extract_theme_for_community
 create_directory_and_files
 write_requirements
+write_pgvector_dockerfile
 write_docker_compose
 write_dockerfile
 write_pgpass

@@ -209,7 +209,7 @@ echo "✅ DB is ready"
 # --------------------------------------
 # Check if already template
 # --------------------------------------
-template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -tAc \
+template_exists=$(docker_cmd exec -i "$POSTGRES_CONTAINER" psql -U "$DB_USER" -d postgres -tAc \
     "SELECT 1 FROM pg_database WHERE datname='$db_name' AND datistemplate=true")
 
 if [[ "$template_exists" == "1" ]]; then

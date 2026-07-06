@@ -278,6 +278,38 @@ else
 fi
 echo ""
 echo "✅ Base stack is up!"
+
+echo "🌐 Waiting for base instance to be accessible..."
+
+URL="https://${DOMAIN}/odoo"
+HTTP_URL="http://${HOST_IP}:8069"
+START_TS=$(date +%s)
+NEXT_CHECK_TS=$START_TS
+
+while true; do
+    NOW_TS=$(date +%s)
+    WAITED=$((NOW_TS-START_TS))
+
+    if (( NOW_TS >= NEXT_CHECK_TS )); then
+        if curl -k -L -s --connect-timeout 2 --max-time 4 "$URL" >/dev/null 2>&1 || \
+           curl -L -s --connect-timeout 2 --max-time 4 "$HTTP_URL" >/dev/null 2>&1; then
+            break
+        fi
+        NEXT_CHECK_TS=$((NOW_TS+3))
+    fi
+
+    printf "\r⏳ Waiting... (%ss)" "$WAITED"
+    sleep 1
+done
+
+echo
+echo "✅ Base instance is accessible."
+
 echo "https://${DOMAIN}/odoo"
 echo "Alternatively, access pgAdmin at http://${HOST_IP}:8069"
+echo ""
+echo ""
+echo "🎉 Odoo Stack setup complete!"
+echo ""
+echo ""
 
