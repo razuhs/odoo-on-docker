@@ -69,7 +69,7 @@ gather_inputs() {
   # shellcheck disable=SC1090
   source "$CONFIG_FILE"
 
-  START=16
+  START=18
   LATEST=19
 
   odoo_version="${ODOO_VERSION:-$LATEST}"
@@ -138,7 +138,7 @@ gather_inputs() {
 # create custom-addons directories for every version of odoo
 create_custom_addons_directories() {
 
-    START=16
+    START=18
     LATEST=19
     echo "Creating file and directory structure..."
     mkdir -p "$custom_addons_dir"

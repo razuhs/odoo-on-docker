@@ -134,7 +134,7 @@ mkdir -p "$CONFIG_DIR"
 # --------------------------------------
 # Config
 # --------------------------------------
-VERSIONS=({16..19})
+VERSIONS=({18..19})
 EDITIONS=(CE EE)
 
 OVERWRITE_ALL=false

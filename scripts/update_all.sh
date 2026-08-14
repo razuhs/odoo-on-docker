@@ -36,7 +36,7 @@ mkdir -p /opt/odoo/server
 
 clone_odoo_servers() {
     # Clone missing Community and Enterprise repositories for versions 16 to 19.
-    for version in 16 17 18 19; do
+    for version in 18 19; do
         if [ ! -d "/opt/odoo/server/odoo-${version}" ]; then
             echo "Cloning Odoo ${version}..."
             if ! git clone --single-branch --branch ${version}.0 https://github.com/odoo/odoo.git /opt/odoo/server/odoo-${version}; then
@@ -48,7 +48,7 @@ clone_odoo_servers() {
         fi
     done
 
-    for version in 16 17 18 19; do
+    for version in 18 19; do
         if [ ! -d "/opt/odoo/server/enterprise-${version}" ]; then
             echo "Cloning Enterprise ${version}..."
             if ! git clone --single-branch --branch ${version}.0 git@github.com:odoo/enterprise.git /opt/odoo/server/enterprise-${version}; then
@@ -63,7 +63,7 @@ clone_odoo_servers() {
 
 update_odoo_servers() {
     # Update already cloned Community and Enterprise repositories for versions 16 to 19.
-    for version in 16 17 18 19; do
+    for version in 18 19; do
         if [ -d "/opt/odoo/server/odoo-${version}" ]; then
             echo
             echo
@@ -79,7 +79,7 @@ update_odoo_servers() {
         fi
     done
 
-    for version in 16 17 18 19; do
+    for version in 18 19; do
         if [ -d "/opt/odoo/server/enterprise-${version}" ]; then
             echo
             echo

@@ -28,7 +28,7 @@
 #
 # 2. reset_docker_environment (interactive)
 #    - asks for explicit confirmation before destructive operations
-#    - optionally preserves Odoo images (odoo:16-19, odoo-custom:16-19)
+#    - optionally preserves Odoo images (odoo:18-19, odoo-custom:18-19)
 #    - removes containers, images, volumes, networks, and prunes system
 #
 #
@@ -242,9 +242,9 @@ ensure_dependencies() {
 # --------------------------------------
 handle_odoo_images() {
     echo ""
-    echo "🔍 Checking Odoo images (16–19)..."
+    echo "🔍 Checking Odoo images (18–19)..."
 
-    local versions=(16 17 18 19)
+    local versions=(18 19)
     local repos=("odoo" "odoo-custom")
     local found=()
 
@@ -325,7 +325,7 @@ reset_docker_environment() {
         for img in $(docker_fallback_cmd images -aq); do
             tags=$(docker_fallback_cmd inspect --format='{{.RepoTags}}' "$img" 2>/dev/null || echo "")
 
-            if echo "$tags" | grep -qE 'odoo:(16|17|18|19)|odoo-custom:(16|17|18|19)'; then
+            if echo "$tags" | grep -qE 'odoo:(18|19)|odoo-custom:(18|19)'; then
                 echo "⏭ Skipping $tags"
             else
                 docker_fallback_cmd rmi -f "$img" 2>/dev/null || true

@@ -29,7 +29,7 @@
 # .test<version><edition><data_flag>_stack.conf
 #
 # Where:
-#   <version>      -> Odoo version (16, 17, 18, 19)
+#   <version>      -> Odoo version (18, 19)
 #   <edition>      -> ce (Community) / ee (Enterprise)
 #   <data_flag>    -> wdd / wodd
 #
@@ -128,7 +128,7 @@ mkdir -p "$CONFIG_DIR"
 # --------------------------------------
 # Config
 # --------------------------------------
-VERSIONS=({16..19})
+VERSIONS=({18..19})
 EDITIONS=(CE EE)
 
 OVERWRITE_ALL=false

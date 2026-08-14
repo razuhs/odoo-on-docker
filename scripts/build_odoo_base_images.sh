@@ -51,7 +51,7 @@ docker_cmd() {
 }
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-START_VERSION=16
+START_VERSION=18
 END_VERSION=19
 
 ensure_docker_access_mode

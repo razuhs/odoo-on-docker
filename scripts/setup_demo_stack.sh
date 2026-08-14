@@ -31,7 +31,7 @@
 # Main flow:
 # ----------
 # 1. Validate and load base + demo config files
-# 2. Validate Odoo version range (16-19)
+# 2. Validate Odoo version range (18-19)
 # 3. Resolve edition-specific addons path (EE/CE)
 # 4. Create or overwrite stack directory structure
 # 5. Generate files:
@@ -119,7 +119,7 @@ gather_inputs() {
   # shellcheck disable=SC1090
   source "$DEMO_CONFIG_FILE"
 
-  START=16
+  START=18
   LATEST=19
 
   odoo_version="${DEMO_ODOO_VERSION:-$LATEST}"
